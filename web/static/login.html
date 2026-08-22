@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>登录 · Agent 管理系统</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+    background: #f0f2f5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+  }
+  .card {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    width: 380px;
+    padding: 36px 32px;
+  }
+  .card h1 {
+    font-size: 22px;
+    font-weight: 600;
+    text-align: center;
+    margin-bottom: 28px;
+    color: #1a1a1a;
+  }
+  .tabs {
+    display: flex;
+    margin-bottom: 24px;
+    border-bottom: 1px solid #e8e8e8;
+  }
+  .tab {
+    flex: 1;
+    text-align: center;
+    padding: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    color: #666;
+    border-bottom: 2px solid transparent;
+    transition: all .2s;
+  }
+  .tab.active {
+    color: #1677ff;
+    border-bottom-color: #1677ff;
+    font-weight: 500;
+  }
+  .field {
+    margin-bottom: 16px;
+  }
+  .field label {
+    display: block;
+    font-size: 13px;
+    color: #666;
+    margin-bottom: 6px;
+  }
+  .field input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #d9d9d9;
+    border-radius: 8px;
+    font-size: 14px;
+    outline: none;
+    transition: border-color .2s;
+  }
+  .field input:focus { border-color: #1677ff; }
+  .btn {
+    width: 100%;
+    padding: 10px;
+    border: none;
+    border-radius: 8px;
+    background: #1677ff;
+    color: #fff;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background .2s;
+    margin-top: 4px;
+  }
+  .btn:hover { background: #4096ff; }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .hint {
+    text-align: center;
+    font-size: 12px;
+    color: #999;
+    margin-top: 16px;
+  }
+  .error-msg {
+    color: #ff4d4f;
+    font-size: 13px;
+    text-align: center;
+    margin-bottom: 12px;
+    min-height: 18px;
+  }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <h1>Agent 管理系统</h1>
+  <div class="tabs">
+    <div class="tab active" id="tab-login" onclick="switchTab('login')">登录</div>
+    <div class="tab" id="tab-register" onclick="switchTab('register')">注册</div>
+  </div>
+  <div class="error-msg" id="error"></div>
+  <form id="form" onsubmit="return false">
+    <div class="field">
+      <label>用户名</label>
+      <input type="text" id="username" placeholder="输入用户名" autocomplete="username">
+    </div>
+    <div class="field">
+      <label>密码</label>
+      <input type="password" id="password" placeholder="输入密码" autocomplete="current-password">
+    </div>
+    <button class="btn" id="submit-btn" onclick="doSubmit()">登录</button>
+  </form>
+  <div class="hint">默认管理员: admin / 123456</div>
+</div>
+
+<script>
+let mode = 'login';
+
+function switchTab(m) {
+  mode = m;
+  document.getElementById('tab-login').classList.toggle('active', m === 'login');
+  document.getElementById('tab-register').classList.toggle('active', m === 'register');
+  document.getElementById('submit-btn').textContent = m === 'login' ? '登录' : '注册';
+  document.getElementById('error').textContent = '';
+}
+
+async function doSubmit() {
+  const username = document.getElementById('username').value.trim();
+  const password = document.getElementById('password').value.trim();
+  const errEl = document.getElementById('error');
+  const btn = document.getElementById('submit-btn');
+
+  if (!username || !password) {
+    errEl.textContent = '请填写用户名和密码';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = '处理中...';
+  errEl.textContent = '';
+
+  try {
+    const resp = await fetch(`/api/auth/${mode}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) {
+      errEl.textContent = data.detail || data.error || '请求失败';
+      return;
+    }
+    localStorage.setItem('token', data.token);
+    localStorage.setItem('username', data.user.username);
+    window.location.href = '/';
+  } catch (e) {
+    errEl.textContent = '网络错误: ' + e.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = mode === 'login' ? '登录' : '注册';
+  }
+}
+
+document.getElementById('password').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doSubmit();
+});
+
+if (localStorage.getItem('token')) {
+  window.location.href = '/';
+}
+</script>
+</body>
+</html>

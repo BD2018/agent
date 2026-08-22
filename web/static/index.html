@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>知识库控制台 · 我的专属 Agent</title>
+<style>
+  :root {
+    --bg: #0f172a;
+    --bg-2: #1e293b;
+    --bg-3: #334155;
+    --fg: #f1f5f9;
+    --fg-dim: #94a3b8;
+    --accent: #6366f1;
+    --accent-2: #818cf8;
+    --success: #10b981;
+    --danger: #ef4444;
+    --border: #334155;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--fg);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 28px;
+    background: var(--bg-2);
+    border-bottom: 1px solid var(--border);
+  }
+  header .left { display: flex; align-items: center; gap: 16px; }
+  header h1 { font-size: 18px; font-weight: 600; }
+  header .nav { display: flex; gap: 8px; }
+  header .nav a {
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    text-decoration: none;
+    transition: all 0.15s;
+  }
+  header .nav a.active {
+    background: var(--accent);
+    color: white;
+  }
+  header .nav a:not(.active) {
+    color: var(--fg-dim);
+    background: var(--bg-3);
+  }
+  header .nav a:not(.active):hover { color: var(--fg); }
+  header .status { display: flex; gap: 10px; }
+  .badge {
+    padding: 4px 12px;
+    border-radius: 12px;
+    background: var(--bg-3);
+    font-size: 12px;
+  }
+  /* 主体 */
+  .container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 32px 24px;
+    flex: 1;
+  }
+  .section { margin-bottom: 32px; }
+  .section h2 {
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--fg-dim);
+    margin-bottom: 16px;
+  }
+  /* 上传区 */
+  .drop-zone {
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    padding: 40px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .drop-zone:hover, .drop-zone.dragover {
+    border-color: var(--accent);
+    background: rgba(99, 102, 241, 0.08);
+  }
+  .drop-zone .icon { font-size: 36px; }
+  .drop-zone p { font-size: 14px; color: var(--fg-dim); margin-top: 8px; }
+  .drop-zone .formats { font-size: 12px; color: var(--fg-dim); margin-top: 10px; }
+  .upload-progress {
+    display: none;
+    margin-top: 12px;
+    padding: 10px 16px;
+    border-radius: 8px;
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    font-size: 13px;
+    color: var(--accent-2);
+  }
+  .upload-progress.active { display: block; }
+  /* 文档列表 */
+  .doc-list { display: flex; flex-direction: column; gap: 6px; }
+  .doc-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    transition: border-color 0.15s;
+  }
+  .doc-item:hover { border-color: var(--accent); }
+  .doc-item .info { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+  .doc-item .name {
+    font-size: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .doc-item .actions { display: flex; gap: 6px; flex-shrink: 0; }
+  .icon-btn {
+    border: none;
+    background: var(--bg-3);
+    color: var(--fg-dim);
+    cursor: pointer;
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 14px;
+    transition: all 0.15s;
+  }
+  .icon-btn:hover { background: var(--bg); color: var(--fg); }
+  .icon-btn.del:hover { background: var(--danger); color: white; }
+  .empty-hint {
+    text-align: center;
+    padding: 32px;
+    color: var(--fg-dim);
+    font-size: 14px;
+    background: var(--bg-2);
+    border: 1px dashed var(--border);
+    border-radius: 10px;
+  }
+  .empty-hint .err-detail {
+    font-size: 12px;
+    margin-top: 8px;
+    color: var(--danger);
+  }
+  /* 滚动条 */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--bg-3); border-radius: 3px; }
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 10px 24px;
+    border-radius: 8px;
+    font-size: 14px;
+    z-index: 100;
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+  }
+  .toast.show { opacity: 1; }
+  .toast.success { background: var(--success); color: white; }
+  .toast.error { background: var(--danger); color: white; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="left">
+    <h1>我的专属 Agent</h1>
+    <nav class="nav">
+      <a href="/console" class="active">控制台</a>
+      <a href="/">对话</a>
+    </nav>
+  </div>
+  <div class="status">
+    <span class="badge" id="chunk-badge">向量片段: -</span>
+    <span class="badge" id="doc-badge">文档: -</span>
+  </div>
+</header>
+
+<div class="container">
+  <!-- 上传 -->
+  <div class="section">
+    <h2>上传文档</h2>
+    <div class="drop-zone" id="drop-zone">
+      <div class="icon">📎</div>
+      <p>点击或拖拽文件到此处上传</p>
+      <div class="formats">支持 .md .txt .pdf .docx .doc .xlsx .xls</div>
+    </div>
+    <input type="file" id="file-input" multiple style="display:none">
+    <div class="upload-progress" id="upload-progress"></div>
+  </div>
+
+  <!-- 文档列表 -->
+  <div class="section">
+    <h2>知识库文档</h2>
+    <div class="doc-list" id="doc-list">
+      <div class="empty-hint">加载中…</div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+function toast(msg, type = 'success') {
+  const el = $('toast');
+  el.textContent = msg;
+  el.className = `toast ${type} show`;
+  setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+async function fetchJSON(url, options = {}, timeout = 60000) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeout);
+  try {
+    const r = await fetch(url, { ...options, signal: ctrl.signal });
+    const text = await r.text();
+    try { return JSON.parse(text); }
+    catch { throw new Error(`响应非 JSON (HTTP ${r.status})`); }
+  } finally { clearTimeout(timer); }
+}
+
+async function loadStatus() {
+  try {
+    const d = await fetchJSON('/api/status');
+    $('chunk-badge').textContent = `向量片段: ${d.chunks}`;
+  } catch (e) {
+    $('chunk-badge').textContent = '连接失败';
+    $('chunk-badge').style.color = 'var(--danger)';
+  }
+}
+
+async function loadDocs() {
+  try {
+    const d = await fetchJSON('/api/docs');
+    $('doc-badge').textContent = `文档: ${d.docs.length}`;
+    $('chunk-badge').textContent = `向量片段: ${d.total}`;
+    const list = $('doc-list');
+    if (!d.docs.length) {
+      list.innerHTML = '<div class="empty-hint">知识库为空，请上传文档</div>';
+      return;
+    }
+    list.innerHTML = d.docs.map(name => `
+      <div class="doc-item">
+        <div class="info"><span class="name" title="${name}">${name}</span></div>
+        <div class="actions">
+          <button class="icon-btn" title="下载" onclick="downloadDoc('${name}')">下载</button>
+          <button class="icon-btn del" title="删除" onclick="deleteDoc('${name}')">删除</button>
+        </div>
+      </div>`).join('');
+  } catch (e) {
+    $('doc-badge').textContent = '连接失败';
+    $('doc-badge').style.color = 'var(--danger)';
+    $('doc-list').innerHTML = `<div class="empty-hint">API 连接失败<div class="err-detail">${e.message}<br>可能原因：代理软件拦截了 localhost 请求</div></div>`;
+  }
+}
+
+async function downloadDoc(name) {
+  window.open('/api/docs/download/' + encodeURIComponent(name), '_blank');
+}
+
+async function deleteDoc(name) {
+  if (!confirm(`确定删除「${name}」及其向量？`)) return;
+  try {
+    await fetchJSON('/api/docs/' + encodeURIComponent(name), { method: 'DELETE' });
+    toast('已删除: ' + name);
+    loadDocs();
+  } catch (e) { toast('删除失败: ' + e.message, 'error'); }
+}
+
+// 上传
+const dropZone = $('drop-zone');
+const fileInput = $('file-input');
+const uploadProgress = $('upload-progress');
+
+dropZone.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', () => uploadFiles(fileInput.files));
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('dragover');
+  uploadFiles(e.dataTransfer.files);
+});
+
+async function uploadFiles(files) {
+  if (!files.length) return;
+  for (const file of files) {
+    uploadProgress.classList.add('active');
+    uploadProgress.textContent = `正在入库: ${file.name} …`;
+    const fd = new FormData();
+    fd.append('file', file);
+    try {
+      const d = await fetchJSON('/api/upload', { method: 'POST', body: fd }, 120000);
+      toast(`「${d.filename}」入库成功，切分为 ${d.chunks} 个片段`);
+    } catch (e) { toast(`上传失败: ${e.message}`, 'error'); }
+  }
+  uploadProgress.classList.remove('active');
+  fileInput.value = '';
+  loadDocs();
+}
+
+loadStatus();
+loadDocs();
+</script>
+</body>
+</html>

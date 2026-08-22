@@ -1,0 +1,13 @@
+# 敏感配置（保留 .env.example 作为模板）
+.env
+
+# Python 运行时
+.venv/
+__pycache__/
+*.pyc
+
+# 运行时数据（数据库、向量库）
+data/
+
+# ZCode 会话文件
+.zcode/

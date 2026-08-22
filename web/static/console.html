@@ -1,0 +1,1032 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent 管理系统</title>
+<style>
+:root {
+  --bg: #f0f2f5;
+  --card: #fff;
+  --sidebar: #001529;
+  --sidebar-active: #1677ff;
+  --text: #1a1a1a;
+  --text-secondary: #666;
+  --border: #e8e8e8;
+  --primary: #1677ff;
+  --primary-light: #e6f4ff;
+  --success: #52c41a;
+  --warning: #faad14;
+  --danger: #ff4d4f;
+  --radius: 8px;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; background: var(--bg); color: var(--text); }
+a { color: var(--primary); text-decoration: none; }
+
+/* ── 顶部栏 ── */
+.topbar {
+  background: var(--sidebar);
+  color: #fff;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  justify-content: space-between;
+}
+.topbar h1 { font-size: 18px; font-weight: 600; }
+.topbar .status-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #52c41a;
+}
+.topbar .status-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #52c41a;
+  box-shadow: 0 0 6px #52c41a;
+  animation: pulse 2s infinite;
+}
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .5; } }
+
+/* ── 布局 ── */
+.layout { display: flex; height: calc(100vh - 56px); overflow: hidden; }
+
+/* ── 侧边栏 ── */
+.sidebar {
+  width: 200px;
+  background: var(--sidebar);
+  flex-shrink: 0;
+  padding: 8px 0;
+  overflow-y: auto;
+}
+.nav-item {
+  padding: 12px 24px;
+  color: rgba(255,255,255,0.65);
+  cursor: pointer;
+  font-size: 14px;
+  transition: all .2s;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.nav-item:hover { color: #fff; background: rgba(255,255,255,0.06); }
+.nav-item.active { background: var(--sidebar-active); color: #fff; }
+.nav-icon { width: 20px; height: 20px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+.nav-icon svg { width: 18px; height: 18px; }
+.sidebar .divider { height: 1px; background: rgba(255,255,255,0.1); margin: 8px 16px; }
+.sidebar .link-chat {
+  padding: 12px 24px;
+  color: rgba(255,255,255,0.65);
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+.sidebar .link-chat:hover { color: #fff; }
+
+/* ── 主内容区 ── */
+.main { flex: 1; padding: 24px; overflow-y: auto; }
+.page { display: none; }
+.page.active { display: block; }
+.page-title { font-size: 20px; font-weight: 600; margin-bottom: 20px; }
+
+/* ── 卡片 ── */
+.card {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  margin-bottom: 16px;
+}
+.card-title { font-size: 15px; font-weight: 600; margin-bottom: 16px; }
+
+/* ── 统计卡片 ── */
+.stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+.stat-card {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.stat-icon {
+  width: 48px; height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.stat-icon svg { width: 22px; height: 22px; }
+.stat-icon.blue { background: #e6f4ff; color: #1677ff; }
+.stat-icon.green { background: #f6ffed; color: #52c41a; }
+.stat-icon.orange { background: #fff7e6; color: #faad14; }
+.stat-icon.purple { background: #f9f0ff; color: #722ed1; }
+.stat-value { font-size: 28px; font-weight: 700; line-height: 1; }
+.stat-label { font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
+
+/* ── 表格 ── */
+.table { width: 100%; border-collapse: collapse; }
+.table th, .table td { padding: 10px 12px; text-align: left; font-size: 13px; }
+.table th { color: var(--text-secondary); font-weight: 500; border-bottom: 2px solid var(--border); }
+.table td { border-bottom: 1px solid var(--border); }
+.table tr:hover td { background: #fafafa; }
+.tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.tag-blue { background: var(--primary-light); color: var(--primary); }
+.tag-green { background: #f6ffed; color: var(--success); }
+.tag-grey { background: #f5f5f5; color: #999; }
+
+/* ── 上传区 ── */
+.drop-zone {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 32px;
+  text-align: center;
+  cursor: pointer;
+  transition: all .2s;
+  background: #fafafa;
+}
+.drop-zone:hover, .drop-zone.drag-over {
+  border-color: var(--primary);
+  background: var(--primary-light);
+}
+.drop-zone .icon { margin-bottom: 8px; }
+.drop-zone .icon svg { width: 32px; height: 32px; }
+.drop-zone .hint { color: var(--text-secondary); font-size: 13px; }
+.upload-progress {
+  margin-top: 12px;
+  display: none;
+}
+.upload-progress.show { display: block; }
+.progress-bar {
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.progress-bar .fill {
+  height: 100%;
+  background: var(--primary);
+  width: 0%;
+  transition: width .3s;
+}
+
+/* ── 按钮 ── */
+.btn {
+  padding: 6px 14px;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all .2s;
+}
+.btn-primary { background: var(--primary); color: #fff; }
+.btn-primary:hover { background: #4096ff; }
+.btn-danger { background: var(--danger); color: #fff; }
+.btn-danger:hover { background: #ff7875; }
+.btn-sm { padding: 4px 10px; font-size: 12px; }
+
+/* ── 信息列表 ── */
+.info-list { display: flex; flex-direction: column; gap: 12px; }
+.info-row { display: flex; gap: 12px; }
+.info-label {
+  width: 140px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  flex-shrink: 0;
+  text-align: right;
+}
+.info-value { font-size: 13px; flex: 1; }
+.info-value code {
+  background: #f5f5f5;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: "Cascadia Code", "Consolas", monospace;
+  font-size: 12px;
+}
+
+/* ── 工具卡片 ── */
+.tools-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+.tool-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+.tool-card h4 { font-size: 14px; margin-bottom: 6px; color: var(--primary); }
+.tool-card p { font-size: 13px; color: var(--text-secondary); margin-bottom: 8px; }
+.tool-params {
+  background: #f5f5f5;
+  border-radius: 4px;
+  padding: 8px;
+  font-size: 12px;
+  font-family: monospace;
+  white-space: pre-wrap;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+/* ── 对话历史 ── */
+.chat-history { display: flex; flex-direction: column; gap: 8px; }
+.history-item {
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: #fafafa;
+}
+.history-item .role {
+  font-weight: 600;
+  font-size: 12px;
+  width: 50px;
+  flex-shrink: 0;
+}
+.history-item .role.user { color: var(--primary); }
+.history-item .role.assistant { color: var(--success); }
+.history-item .content { font-size: 13px; line-height: 1.6; white-space: pre-wrap; }
+
+/* ── Toast ── */
+.toast {
+  position: fixed;
+  top: 70px;
+  right: 24px;
+  padding: 10px 20px;
+  border-radius: var(--radius);
+  color: #fff;
+  font-size: 14px;
+  opacity: 0;
+  transform: translateY(-10px);
+  transition: all .3s;
+  z-index: 999;
+}
+.toast.show { opacity: 1; transform: translateY(0); }
+.toast.success { background: var(--success); }
+.toast.error { background: var(--danger); }
+
+/* ── 空状态 ── */
+.empty { text-align: center; padding: 32px; color: var(--text-secondary); font-size: 14px; }
+
+/* ── 自定义模态框 ── */
+.modal-overlay {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0,0,0,0.45); z-index: 9000;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; transition: opacity .2s;
+}
+.modal-overlay.show { opacity: 1; }
+.modal-box {
+  background: #fff; border-radius: 12px; width: 420px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+  transform: translateY(20px); transition: transform .2s;
+  overflow: hidden;
+}
+.modal-overlay.show .modal-box { transform: translateY(0); }
+.modal-head {
+  padding: 16px 20px; font-size: 15px; font-weight: 600;
+  border-bottom: 1px solid var(--border);
+  display: flex; justify-content: space-between; align-items: center;
+}
+.modal-body { padding: 20px; }
+.modal-body label { display: block; font-size: 13px; color: var(--text-secondary); margin-bottom: 6px; }
+.modal-body input {
+  width: 100%; padding: 10px 12px; border: 1px solid #d9d9d9;
+  border-radius: 8px; font-size: 14px; outline: none; transition: border-color .2s;
+  margin-bottom: 14px;
+}
+.modal-body input:focus { border-color: var(--primary); }
+.modal-body input:last-child { margin-bottom: 0; }
+.modal-body .msg { font-size: 14px; line-height: 1.6; color: var(--text); }
+.modal-foot {
+  padding: 12px 20px; display: flex; justify-content: flex-end; gap: 8px;
+  border-top: 1px solid var(--border);
+}
+.modal-foot .btn { min-width: 64px; }
+.btn-ghost { background: #f5f5f5; color: #666; }
+.btn-ghost:hover { background: #e8e8e8; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>Agent 管理系统</h1>
+  <div class="status-badge">
+    <span class="status-dot"></span>
+    <span id="server-status">运行中</span>
+  </div>
+</div>
+
+<div class="layout">
+  <!-- 侧边栏 -->
+  <div class="sidebar">
+    <div class="nav-item active" data-page="dashboard">
+      <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></span> 概览
+    </div>
+    <div class="nav-item" data-page="knowledge">
+      <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span> 知识库管理
+    </div>
+    <div class="nav-item" data-page="doclist">
+      <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg></span> 文档列表
+    </div>
+    <div class="nav-item" data-page="chunks">
+      <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg></span> 向量片段
+    </div>
+    <div class="nav-item" data-page="history">
+      <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span> 对话历史
+    </div>
+    <div class="nav-item" data-page="system">
+      <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span> 系统信息
+    </div>
+    <div class="nav-item" data-page="users" id="nav-users" style="display:none;">
+      <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span> 用户管理
+    </div>
+    <div class="divider"></div>
+    <a class="link-chat" href="/">
+      <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></span> 对话页面
+    </a>
+  </div>
+
+  <!-- 主内容区 -->
+  <div class="main">
+    <!-- 概览 -->
+    <div class="page active" id="page-dashboard">
+      <h2 class="page-title">概览</h2>
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+          <div>
+            <div class="stat-value" id="stat-docs">-</div>
+            <div class="stat-label">文档数</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg></div>
+          <div>
+            <div class="stat-value" id="stat-chunks">-</div>
+            <div class="stat-label">向量片段</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon orange"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+          <div>
+            <div class="stat-value" id="stat-chats">-</div>
+            <div class="stat-label">对话轮数</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></div>
+          <div>
+            <div class="stat-value" id="stat-tools">-</div>
+            <div class="stat-label">可用工具</div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">最近文档</div>
+        <table class="table">
+          <thead><tr><th>文件名</th><th>状态</th></tr></thead>
+          <tbody id="recent-docs"><tr><td colspan="2" class="empty">加载中…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 知识库管理 -->
+    <div class="page" id="page-knowledge">
+      <h2 class="page-title">知识库管理</h2>
+      <div class="card">
+        <div class="card-title">上传文档</div>
+        <div class="drop-zone" id="drop-zone">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+          <div>点击或拖拽文件到此处上传</div>
+          <div class="hint">支持 .md .txt .pdf .docx .xlsx .csv .tsv .json .html</div>
+          <input type="file" id="file-input" multiple style="display:none">
+        </div>
+        <div class="upload-progress" id="upload-progress">
+          <div id="upload-status" style="margin-bottom:6px;font-size:13px;"></div>
+          <div class="progress-bar"><div class="fill" id="progress-fill"></div></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">文档列表</div>
+        <table class="table">
+          <thead><tr><th>文件名</th><th>操作</th></tr></thead>
+          <tbody id="doc-list"><tr><td colspan="2" class="empty">加载中…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 文档列表 -->
+    <div class="page" id="page-doclist">
+      <h2 class="page-title">文档列表</h2>
+      <div class="card">
+        <div class="card-title">知识库文档</div>
+        <table class="table">
+          <thead><tr><th>文件名</th><th>片段数</th><th>操作</th></tr></thead>
+          <tbody id="doc-detail-list"><tr><td colspan="3" class="empty">加载中…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 向量片段 -->
+    <div class="page" id="page-chunks">
+      <h2 class="page-title">向量片段</h2>
+      <div style="margin-bottom:16px;display:flex;gap:12px;align-items:center;">
+        <input type="text" id="chunk-filter" placeholder="按文件名筛选…" style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+        <div style="display:flex;gap:0;border:1px solid var(--border);border-radius:6px;overflow:hidden;">
+          <button class="btn btn-sm" id="view-card-btn" style="background:var(--primary);color:#fff;" onclick="switchChunkView('card')">卡片</button>
+          <button class="btn btn-sm" id="view-table-btn" style="background:#fff;color:#666;" onclick="switchChunkView('table')">列表</button>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="loadChunks()">刷新</button>
+      </div>
+      <div id="chunks-card-container" style="display:flex;flex-direction:column;gap:12px;">
+        <div class="empty">加载中…</div>
+      </div>
+      <div id="chunks-table-container" style="display:none;">
+        <div class="card" style="padding:0;overflow:hidden;">
+          <table class="table">
+            <thead><tr><th style="width:40px;">#</th><th style="width:140px;">来源</th><th>内容预览</th><th style="width:80px;">操作</th></tr></thead>
+            <tbody id="chunks-table-body"><tr><td colspan="4" class="empty">加载中…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- 对话历史 -->
+    <div class="page" id="page-history">
+      <h2 class="page-title">对话历史</h2>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+          <div class="card-title" style="margin:0;">历史记录</div>
+          <button class="btn btn-danger btn-sm" id="clear-history-btn">清空历史</button>
+        </div>
+        <div class="chat-history" id="history-list">
+          <div class="empty">加载中…</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 系统信息 -->
+    <div class="page" id="page-system">
+      <h2 class="page-title">系统信息</h2>
+      <div class="card">
+        <div class="card-title">模型配置</div>
+        <div class="info-list" id="system-config">
+          <div class="empty">加载中…</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">可用工具</div>
+        <div class="tools-grid" id="tools-list">
+          <div class="empty">加载中…</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 用户管理 -->
+    <div class="page" id="page-users">
+      <h2 class="page-title">用户管理</h2>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+          <div class="card-title" style="margin:0;">用户列表</div>
+          <button class="btn btn-primary btn-sm" onclick="showCreateUser()">新增用户</button>
+        </div>
+        <table class="table">
+          <thead><tr><th>ID</th><th>用户名</th><th>创建时间</th><th>操作</th></tr></thead>
+          <tbody id="user-list"><tr><td colspan="4" class="empty">加载中…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+// ── 认证 ──
+function getToken() { return localStorage.getItem('token'); }
+function authHeaders(extra = {}) {
+  const t = getToken();
+  return t ? { 'Authorization': `Bearer ${t}`, ...extra } : extra;
+}
+if (!getToken()) { window.location.href = '/login'; }
+
+// ── 导航切换 ──
+document.querySelectorAll('.nav-item').forEach(item => {
+  item.addEventListener('click', () => {
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    item.classList.add('active');
+    const page = item.dataset.page;
+    $('page-' + page).classList.add('active');
+    if (page === 'dashboard') loadDashboard();
+    if (page === 'knowledge') loadDocs();
+    if (page === 'doclist') loadDocList();
+    if (page === 'chunks') loadChunks();
+    if (page === 'history') loadHistory();
+    if (page === 'system') loadSystem();
+    if (page === 'users') loadUsers();
+  });
+});
+
+// ── 通用 ──
+function toast(msg, type = 'success') {
+  const el = $('toast');
+  el.textContent = msg;
+  el.className = `toast ${type} show`;
+  setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+async function fetchJSON(url, options = {}, timeout = 60000) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeout);
+  try {
+    const r = await fetch(url, {
+      ...options,
+      headers: authHeaders(options.headers || {}),
+      signal: ctrl.signal,
+    });
+    if (r.status === 401) { window.location.href = '/login'; throw new Error('未登录'); }
+    const text = await r.text();
+    try { return JSON.parse(text); }
+    catch { throw new Error(`HTTP ${r.status}`); }
+  } finally { clearTimeout(timer); }
+}
+
+// ── 概览 ──
+async function loadDashboard() {
+  try {
+    const [status, docs, history, system] = await Promise.all([
+      fetchJSON('/api/status'),
+      fetchJSON('/api/docs'),
+      fetchJSON('/api/history'),
+      fetchJSON('/api/system'),
+    ]);
+    $('stat-chunks').textContent = status.chunks;
+    $('stat-docs').textContent = docs.total;
+    $('stat-chats').textContent = Math.floor(history.messages.length / 2);
+    $('stat-tools').textContent = system.tools.length;
+
+    const recent = docs.docs.slice(0, 5);
+    $('recent-docs').innerHTML = recent.length
+      ? recent.map(d => `<tr><td>${d}</td><td><span class="tag tag-green">已入库</span></td></tr>`).join('')
+      : '<tr><td colspan="2" class="empty">暂无文档</td></tr>';
+  } catch (e) { toast('加载失败: ' + e.message, 'error'); }
+}
+
+// ── 知识库管理 ──
+async function loadDocs() {
+  try {
+    const d = await fetchJSON('/api/docs');
+    const tbody = $('doc-list');
+    tbody.innerHTML = d.docs.length
+      ? d.docs.map(name => `
+        <tr>
+          <td>${name}</td>
+          <td>
+            <button class="btn btn-primary btn-sm" onclick="downloadDoc('${name}')">下载</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteDoc('${name}')">删除</button>
+          </td>
+        </tr>`).join('')
+      : '<tr><td colspan="2" class="empty">暂无文档</div></tr>';
+  } catch (e) { toast('加载失败: ' + e.message, 'error'); }
+}
+
+async function deleteDoc(name) {
+  showModal({
+    title: '删除文档',
+    message: `确定删除 ${name}？向量库中的切片也会一并删除。`,
+    confirmText: '删除',
+    danger: true,
+    onConfirm: async () => {
+      try {
+        await fetchJSON(`/api/docs/${encodeURIComponent(name)}`, { method: 'DELETE' });
+        toast('删除成功');
+        loadDocs();
+        return true;
+      } catch (e) { toast('删除失败: ' + e.message, 'error'); return false; }
+    }
+  });
+}
+
+function downloadDoc(name) {
+  window.open(`/api/docs/download/${encodeURIComponent(name)}`, '_blank');
+}
+
+// ── 上传 ──
+const dropZone = $('drop-zone');
+const fileInput = $('file-input');
+
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  handleFiles(e.dataTransfer.files);
+});
+fileInput.addEventListener('change', e => handleFiles(e.target.files));
+
+async function handleFiles(files) {
+  if (!files.length) return;
+  const prog = $('upload-progress');
+  prog.classList.add('show');
+  $('progress-fill').style.width = '0%';
+
+  for (let i = 0; i < files.length; i++) {
+    const f = files[i];
+    $('upload-status').textContent = `上传中 (${i+1}/${files.length}): ${f.name}`;
+    const formData = new FormData();
+    formData.append('file', f);
+    try {
+      const r = await fetch('/api/upload', { method: 'POST', headers: authHeaders(), body: formData });
+      if (r.status === 401) { window.location.href = '/login'; return; }
+      const d = await r.json();
+      if (d.detail) throw new Error(d.detail);
+      $('progress-fill').style.width = `${((i+1)/files.length)*100}%`;
+      toast(`${f.name} 入库成功，切片数: ${d.chunks}`);
+    } catch (e) { toast(`${f.name} 上传失败: ${e.message}`, 'error'); }
+  }
+  $('upload-status').textContent = '全部完成';
+  setTimeout(() => prog.classList.remove('show'), 2000);
+  loadDocs();
+}
+
+// ── 文档列表 ──
+async function loadDocList() {
+  try {
+    const [docs, chunks] = await Promise.all([
+      fetchJSON('/api/docs'),
+      fetchJSON('/api/chunks'),
+    ]);
+    const chunkCount = {};
+    chunks.chunks.forEach(c => {
+      chunkCount[c.source] = (chunkCount[c.source] || 0) + 1;
+    });
+    const tbody = $('doc-detail-list');
+    tbody.innerHTML = docs.docs.length
+      ? docs.docs.map(name => `
+        <tr>
+          <td>${name}</td>
+          <td><span class="tag tag-blue">${chunkCount[name] || 0}</span></td>
+          <td>
+            <button class="btn btn-primary btn-sm" onclick="downloadDoc('${name}')">下载</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteDocFromList('${name}')">删除</button>
+          </td>
+        </tr>`).join('')
+      : '<tr><td colspan="3" class="empty">暂无文档</td></tr>';
+  } catch (e) { toast('加载失败: ' + e.message, 'error'); }
+}
+
+async function deleteDocFromList(name) {
+  showModal({
+    title: '删除文档',
+    message: `确定删除 ${name}？向量库中的切片也会一并删除。`,
+    confirmText: '删除',
+    danger: true,
+    onConfirm: async () => {
+      try {
+        await fetchJSON(`/api/docs/${encodeURIComponent(name)}`, { method: 'DELETE' });
+        toast('删除成功');
+        loadDocList();
+        return true;
+      } catch (e) { toast('删除失败: ' + e.message, 'error'); return false; }
+    }
+  });
+}
+
+// ── 向量片段 ──
+let _allChunks = [];
+let _chunkView = 'card';
+
+function switchChunkView(view) {
+  _chunkView = view;
+  $('chunks-card-container').style.display = view === 'card' ? 'flex' : 'none';
+  $('chunks-table-container').style.display = view === 'table' ? 'block' : 'none';
+  $('view-card-btn').style.background = view === 'card' ? 'var(--primary)' : '#fff';
+  $('view-card-btn').style.color = view === 'card' ? '#fff' : '#666';
+  $('view-table-btn').style.background = view === 'table' ? 'var(--primary)' : '#fff';
+  $('view-table-btn').style.color = view === 'table' ? '#fff' : '#666';
+  renderChunks();
+}
+
+async function loadChunks() {
+  try {
+    const d = await fetchJSON('/api/chunks');
+    _allChunks = d.chunks || [];
+    renderChunks();
+  } catch (e) { toast('加载失败: ' + e.message, 'error'); }
+}
+
+function renderChunks() {
+  const filter = ($('chunk-filter').value || '').trim().toLowerCase();
+  const filtered = filter
+    ? _allChunks.filter(c => c.source.toLowerCase().includes(filter))
+    : _allChunks;
+
+  if (!filtered.length) {
+    if (_chunkView === 'card') {
+      $('chunks-card-container').innerHTML = '<div class="empty">暂无切片</div>';
+    } else {
+      $('chunks-table-body').innerHTML = '<tr><td colspan="4" class="empty">暂无切片</td></tr>';
+    }
+    return;
+  }
+
+  if (_chunkView === 'card') {
+    $('chunks-card-container').innerHTML = filtered.map((c, i) => `
+      <div class="card" style="padding:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <div style="display:flex;gap:8px;align-items:center;">
+            <span class="tag tag-grey">#${i + 1}</span>
+            <span class="tag tag-blue">${escapeHtml(c.source)}</span>
+            <span style="font-size:12px;color:#999;font-family:monospace;">${c.id}</span>
+          </div>
+          <button class="btn btn-sm" style="background:#f5f5f5;" onclick="toggleChunk(this)">展开</button>
+        </div>
+        <div class="chunk-preview" style="font-size:13px;color:#666;line-height:1.6;white-space:pre-wrap;">${escapeHtml(c.preview)}</div>
+        <div class="chunk-full" style="display:none;font-size:13px;line-height:1.6;white-space:pre-wrap;margin-top:8px;border-top:1px solid var(--border);padding-top:8px;">${escapeHtml(c.content)}</div>
+      </div>`).join('');
+  } else {
+    $('chunks-table-body').innerHTML = filtered.map((c, i) => `
+      <tr>
+        <td>${i + 1}</td>
+        <td><span class="tag tag-blue">${escapeHtml(c.source)}</span></td>
+        <td style="max-width:500px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(c.content)}">${escapeHtml(c.preview)}</td>
+        <td><button class="btn btn-sm" style="background:#f5f5f5;" onclick="showChunkDetail(${i})">详情</button></td>
+      </tr>`).join('');
+  }
+}
+
+function showChunkDetail(index) {
+  const filter = ($('chunk-filter').value || '').trim().toLowerCase();
+  const filtered = filter
+    ? _allChunks.filter(c => c.source.toLowerCase().includes(filter))
+    : _allChunks;
+  const c = filtered[index];
+  if (!c) return;
+  const modal = document.createElement('div');
+  modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.4);z-index:9999;display:flex;align-items:center;justify-content:center;';
+  modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+  modal.innerHTML = `
+    <div style="background:#fff;border-radius:8px;width:600px;max-height:70vh;display:flex;flex-direction:column;">
+      <div style="padding:16px 20px;border-bottom:1px solid #e8e8e8;display:flex;justify-content:space-between;align-items:center;">
+        <div style="display:flex;gap:8px;align-items:center;">
+          <span class="tag tag-blue">${escapeHtml(c.source)}</span>
+          <span style="font-size:12px;color:#999;font-family:monospace;">${c.id}</span>
+        </div>
+        <button class="btn btn-sm" style="background:#f5f5f5;" onclick="this.closest('div[style*=fixed]').remove()">关闭</button>
+      </div>
+      <div style="padding:20px;font-size:14px;line-height:1.8;white-space:pre-wrap;overflow-y:auto;">${escapeHtml(c.content)}</div>
+    </div>`;
+  document.body.appendChild(modal);
+}
+
+function toggleChunk(btn) {
+  const card = btn.closest('.card');
+  const preview = card.querySelector('.chunk-preview');
+  const full = card.querySelector('.chunk-full');
+  if (full.style.display === 'none') {
+    full.style.display = 'block';
+    preview.style.display = 'none';
+    btn.textContent = '收起';
+  } else {
+    full.style.display = 'none';
+    preview.style.display = 'block';
+    btn.textContent = '展开';
+  }
+}
+
+$('chunk-filter').addEventListener('input', renderChunks);
+
+// ── 对话历史 ──
+async function loadHistory() {
+  try {
+    const d = await fetchJSON('/api/history');
+    const el = $('history-list');
+    if (!d.messages.length) {
+      el.innerHTML = '<div class="empty">暂无对话记录</div>';
+      return;
+    }
+    el.innerHTML = d.messages.map(m => `
+      <div class="history-item">
+        <div class="role ${m.role}">${m.role === 'user' ? '用户' : 'AI'}</div>
+        <div class="content">${escapeHtml(m.content)}</div>
+      </div>`).join('');
+  } catch (e) { toast('加载失败: ' + e.message, 'error'); }
+}
+
+$('clear-history-btn').addEventListener('click', () => {
+  showModal({
+    title: '清空对话历史',
+    message: '确定清空全部对话历史？此操作不可撤销。',
+    confirmText: '清空',
+    danger: true,
+    onConfirm: async () => {
+      try {
+        await fetchJSON('/api/reset', { method: 'POST' });
+        loadHistory();
+        toast('已清空');
+        return true;
+      } catch (e) { toast('清空失败: ' + e.message, 'error'); return false; }
+    }
+  });
+});
+
+// ── 系统信息 ──
+async function loadSystem() {
+  try {
+    const s = await fetchJSON('/api/system');
+    const items = [
+      ['对话模型', s.model],
+      ['API 地址', s.base_url],
+      ['嵌入模型', s.embedding_model],
+      ['切片大小', s.chunk_size + ' 字符'],
+      ['切片重叠', s.chunk_overlap + ' 字符'],
+      ['检索 Top-K', s.top_k],
+      ['最大工具轮数', s.max_tool_rounds],
+      ['历史窗口', s.history_window + ' 条'],
+      ['向量库路径', s.chroma_dir],
+      ['文档路径', s.docs_dir],
+      ['支持格式', s.supported_exts.join(', ')],
+    ];
+    $('system-config').innerHTML = items.map(([k, v]) => `
+      <div class="info-row">
+        <div class="info-label">${k}</div>
+        <div class="info-value"><code>${v}</code></div>
+      </div>`).join('');
+
+    $('tools-list').innerHTML = s.tools.map(t => `
+      <div class="tool-card">
+        <h4>${t.name}</h4>
+        <p>${t.description}</p>
+        <div class="tool-params">${JSON.stringify(t.parameters, null, 2)}</div>
+      </div>`).join('');
+  } catch (e) { toast('加载失败: ' + e.message, 'error'); }
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── 用户管理 ──
+async function loadUsers() {
+  try {
+    const d = await fetchJSON('/api/users');
+    const tbody = $('user-list');
+    tbody.innerHTML = d.users.length
+      ? d.users.map(u => `
+        <tr>
+          <td>${u.id}</td>
+          <td>${u.username}${u.id === 1 ? ' <span class="tag tag-green">管理员</span>' : ''}</td>
+          <td>${u.created_at || '-'}</td>
+          <td>
+            <button class="btn btn-primary btn-sm" onclick="resetPassword(${u.id}, '${u.username}')">重置密码</button>
+            ${u.id !== 1 ? `<button class="btn btn-danger btn-sm" onclick="removeUser(${u.id}, '${u.username}')">删除</button>` : ''}
+          </td>
+        </tr>`).join('')
+      : '<tr><td colspan="4" class="empty">暂无用户</td></tr>';
+  } catch (e) {
+    if (e.message.includes('403') || e.message.includes('Forbidden')) {
+      $('user-list').innerHTML = '<tr><td colspan="4" class="empty">仅管理员可查看</td></tr>';
+    } else {
+      toast('加载失败: ' + e.message, 'error');
+    }
+  }
+}
+
+function showCreateUser() {
+  showModal({
+    title: '新增用户',
+    fields: [
+      { name: 'username', label: '用户名', placeholder: '输入用户名' },
+      { name: 'password', label: '密码', type: 'password', placeholder: '至少 6 位' },
+    ],
+    onConfirm: async (vals) => {
+      if (!vals.username || !vals.password) { toast('用户名和密码不能为空', 'error'); return false; }
+      if (vals.password.length < 6) { toast('密码至少 6 位', 'error'); return false; }
+      try {
+        await fetchJSON('/api/users', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(vals),
+        });
+        toast('用户创建成功');
+        loadUsers();
+        return true;
+      } catch (e) { toast('创建失败: ' + e.message, 'error'); return false; }
+    }
+  });
+}
+
+function resetPassword(id, username) {
+  showModal({
+    title: `重置 ${username} 的密码`,
+    fields: [
+      { name: 'password', label: '新密码', type: 'password', placeholder: '至少 6 位' },
+    ],
+    onConfirm: async (vals) => {
+      if (vals.password.length < 6) { toast('密码至少 6 位', 'error'); return false; }
+      try {
+        await fetchJSON(`/api/users/${id}/password`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: vals.password }),
+        });
+        toast(`${username} 密码已重置`);
+        return true;
+      } catch (e) { toast('重置失败: ' + e.message, 'error'); return false; }
+    }
+  });
+}
+
+function removeUser(id, username) {
+  showModal({
+    title: '删除用户',
+    message: `确定删除用户 ${username}？该用户的知识库和对话历史将保留但不可访问。`,
+    confirmText: '删除',
+    danger: true,
+    onConfirm: async () => {
+      try {
+        await fetchJSON(`/api/users/${id}`, { method: 'DELETE' });
+        toast('用户已删除');
+        loadUsers();
+        return true;
+      } catch (e) { toast('删除失败: ' + e.message, 'error'); return false; }
+    }
+  });
+}
+
+// ── 自定义模态框 ──
+function showModal({ title, fields, message, onConfirm, confirmText = '确定', danger = false }) {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  let bodyHTML = '';
+  if (message) bodyHTML += `<div class="msg">${escapeHtml(message)}</div>`;
+  if (fields) bodyHTML += fields.map(f => `
+    <label>${f.label}</label>
+    <input type="${f.type || 'text'}" name="${f.name}" placeholder="${f.placeholder || ''}" autocomplete="new-password">`).join('');
+
+  overlay.innerHTML = `
+    <div class="modal-box">
+      <div class="modal-head">${escapeHtml(title)}</div>
+      <div class="modal-body">${bodyHTML}</div>
+      <div class="modal-foot">
+        <button class="btn btn-ghost" data-action="cancel">取消</button>
+        <button class="btn ${danger ? 'btn-danger' : 'btn-primary'}" data-action="confirm">${confirmText}</button>
+      </div>
+    </div>`;
+
+  document.body.appendChild(overlay);
+  requestAnimationFrame(() => overlay.classList.add('show'));
+
+  const close = () => { overlay.classList.remove('show'); setTimeout(() => overlay.remove(), 200); };
+  overlay.querySelector('[data-action="cancel"]').onclick = close;
+  overlay.onclick = (e) => { if (e.target === overlay) close(); };
+
+  const confirmBtn = overlay.querySelector('[data-action="confirm"]');
+  confirmBtn.onclick = async () => {
+    const vals = {};
+    if (fields) {
+      fields.forEach(f => {
+        vals[f.name] = overlay.querySelector(`input[name="${f.name}"]`).value.trim();
+      });
+    }
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = '处理中...';
+    const ok = await onConfirm(vals);
+    if (ok) close();
+    else { confirmBtn.disabled = false; confirmBtn.textContent = confirmText; }
+  };
+
+  const firstInput = overlay.querySelector('input');
+  if (firstInput) {
+    firstInput.focus();
+    firstInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') confirmBtn.click();
+    });
+  }
+}
+
+// 检查是否 admin，显示用户管理菜单
+fetchJSON('/api/auth/me').then(d => {
+  if (d.user.id === 1) {
+    $('nav-users').style.display = '';
+  }
+}).catch(() => {});
+
+// 初始加载
+loadDashboard();
+</script>
+</body>
+</html>

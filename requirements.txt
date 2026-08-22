@@ -1,0 +1,15 @@
+openai>=1.40
+chromadb>=0.5
+sentence-transformers>=2.6
+python-dotenv>=1.0
+# 文档解析（知识库多格式支持）
+pypdf>=4.0
+python-docx>=1.1
+openpyxl>=3.1
+xlrd>=2.0
+# 读取老格式 .doc 用（仅 Windows 且本机装有 Word 时需要）
+pywin32>=306; sys_platform == "win32"
+# Web 服务
+fastapi>=0.110
+uvicorn[standard]>=0.29
+python-multipart>=0.0.9
