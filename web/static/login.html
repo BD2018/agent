@@ -156,6 +156,8 @@ async function doSubmit() {
       errEl.textContent = data.detail || data.error || '请求失败';
       return;
     }
+    localStorage.removeItem('token');
+    localStorage.removeItem('username');
     localStorage.setItem('token', data.token);
     localStorage.setItem('username', data.user.username);
     window.location.href = '/';
@@ -170,10 +172,6 @@ async function doSubmit() {
 document.getElementById('password').addEventListener('keydown', e => {
   if (e.key === 'Enter') doSubmit();
 });
-
-if (localStorage.getItem('token')) {
-  window.location.href = '/';
-}
 </script>
 </body>
 </html>

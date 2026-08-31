@@ -10,10 +10,16 @@ BASE_DIR = Path(__file__).resolve().parent
 # 加载 .env 中的环境变量
 load_dotenv(BASE_DIR / ".env")
 
-# ---------- DeepSeek ----------
-DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
-DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
-MODEL = os.getenv("MODEL", "deepseek-chat")
+# ---------- LLM（任意 OpenAI 格式兼容 API）----------
+# API Key 不再从 .env 读取，唯一来源是 Web 管理页写入的 settings.db（加密存储）。
+# base_url / model 仍保留 .env 默认值作为初始值，Web 页面保存后覆盖。
+LLM_API_KEY = ""  # 始终为空，仅作 fallback 占位
+LLM_BASE_URL = (
+    os.getenv("LLM_BASE_URL")
+    or os.getenv("DEEPSEEK_BASE_URL")
+    or "https://api.deepseek.com"
+)
+LLM_MODEL = os.getenv("LLM_MODEL") or os.getenv("MODEL") or "deepseek-chat"
 
 # ---------- 知识库 ----------
 DOCS_DIR = BASE_DIR / "data" / "docs"          # 存放原始文档（.md / .txt）
@@ -31,7 +37,27 @@ WEB_HOST = os.getenv("WEB_HOST", "0.0.0.0")
 WEB_PORT = int(os.getenv("WEB_PORT", "1129"))
 
 # ---------- 认证 ----------
-JWT_SECRET = os.getenv("JWT_SECRET", "agent-secret-key-change-in-production")
+def _ensure_jwt_secret() -> str:
+    """从 .env 读取 JWT_SECRET，不存在则生成随机值并写回。"""
+    existing = os.getenv("JWT_SECRET")
+    if existing:
+        return existing
+    import secrets as _s
+    secret = _s.token_urlsafe(32)
+    env_path = BASE_DIR / ".env"
+    line = f"JWT_SECRET={secret}\n"
+    if env_path.exists():
+        content = env_path.read_text(encoding="utf-8")
+        if "JWT_SECRET" not in content:
+            env_path.write_text(content.rstrip("\n") + "\n" + line, encoding="utf-8")
+    else:
+        env_path.write_text(line, encoding="utf-8")
+    os.environ["JWT_SECRET"] = secret
+    return secret
+
+
+JWT_SECRET = _ensure_jwt_secret()
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_HOURS = int(os.getenv("JWT_EXPIRE_HOURS", "168"))  # 7 天
 USERS_DB = str(BASE_DIR / "data" / "users.db")
+SETTINGS_DB = str(BASE_DIR / "data" / "settings.db")  # Web 页面保存的 LLM 设置

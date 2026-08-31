@@ -119,6 +119,16 @@
   .typing span:nth-child(2) { animation-delay: 0.2s; }
   .typing span:nth-child(3) { animation-delay: 0.4s; }
   @keyframes blink { 0%, 80%, 100% { opacity: 0.3; } 40% { opacity: 1; } }
+  /* 打字机光标 */
+  .bubble .cursor {
+    display: inline-block;
+    width: 2px; height: 1em;
+    margin-left: 2px;
+    vertical-align: -0.15em;
+    background: var(--fg);
+    animation: cursor-blink 0.9s infinite;
+  }
+  @keyframes cursor-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
   /* 输入区 */
   .input-bar {
     padding: 16px 28px 20px;
@@ -217,10 +227,6 @@ function authHeaders(extra = {}) {
   const t = getToken();
   return t ? { 'Authorization': `Bearer ${t}`, ...extra } : extra;
 }
-function checkAuth() {
-  if (!getToken()) { window.location.href = '/login'; return false; }
-  return true;
-}
 
 function toast(msg, type = 'success') {
   const el = $('toast');
@@ -238,11 +244,30 @@ async function fetchJSON(url, options = {}, timeout = 120000) {
       headers: authHeaders(options.headers || {}),
       signal: ctrl.signal,
     });
-    if (r.status === 401) { window.location.href = '/login'; throw new Error('未登录'); }
+    if (r.status === 401) { throw new AuthError('未登录'); }
     const text = await r.text();
     try { return JSON.parse(text); }
     catch { throw new Error(`响应非 JSON (HTTP ${r.status})`); }
   } finally { clearTimeout(timer); }
+}
+
+class AuthError extends Error {
+  constructor(msg) { super(msg); this.name = 'AuthError'; }
+}
+
+function showLoginPrompt() {
+  localStorage.removeItem('token');
+  localStorage.removeItem('username');
+  messagesEl.innerHTML = `
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:16px;">
+      <div style="font-size:15px;color:var(--fg-dim);text-align:center;line-height:1.8;">
+        请先登录后再使用对话功能
+      </div>
+      <a href="/login" style="padding:8px 20px;background:var(--accent);color:#fff;border-radius:8px;text-decoration:none;font-size:14px;">前往登录</a>
+    </div>`;
+  inputEl.disabled = true;
+  sendBtn.disabled = true;
+  inputEl.placeholder = '请先登录';
 }
 
 // ---------- 对话 ----------
@@ -264,6 +289,11 @@ sendBtn.addEventListener('click', sendMessage);
 async function sendMessage() {
   const text = inputEl.value.trim();
   if (!text || sending) return;
+  if (!getToken()) {
+    toast('请先登录后再使用对话功能', 'error');
+    showLoginPrompt();
+    return;
+  }
   sending = true;
   sendBtn.disabled = true;
 
@@ -276,6 +306,46 @@ async function sendMessage() {
   let answerText = '';
   let eventsEl = null;
 
+  // ── 打字机渲染：网络接收与视觉渲染解耦 ──
+  // SSE 到达的文本先进 pending 缓冲，rAF 循环每帧匀速吐字；
+  // 缓冲越长吐字越快（÷8），模型卡顿后突然到货的大段文字能自动追平。
+  let pending = '';
+  let pumpRunning = false;
+  let textNode = null;
+  let cursorEl = null;
+
+  function ensureStreamStructure() {
+    if (textNode) return;
+    bubbleEl.textContent = '';
+    textNode = document.createTextNode('');
+    cursorEl = document.createElement('span');
+    cursorEl.className = 'cursor';
+    bubbleEl.append(textNode, cursorEl);
+  }
+
+  function pump() {
+    if (!textNode || !textNode.isConnected) { pumpRunning = false; return; } // 气泡已被错误/提示文案整体替换
+    if (!pending.length) { pumpRunning = false; return; }
+    const n = Math.max(1, Math.ceil(pending.length / 8));
+    textNode.data += pending.slice(0, n);
+    pending = pending.slice(n);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+    requestAnimationFrame(pump);
+  }
+
+  function enqueueText(chunk) {
+    ensureStreamStructure();
+    pending += chunk;
+    if (!pumpRunning) { pumpRunning = true; requestAnimationFrame(pump); }
+  }
+
+  function finishTyping() {
+    if (!textNode) return;
+    pending = '';            // 清空积压，防止收尾后残余缓冲被再次追加造成重复
+    textNode.data = answerText; // 收尾与完整内容对齐，保证不吞字
+    if (cursorEl) { cursorEl.remove(); cursorEl = null; }
+  }
+
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 180000);
@@ -286,7 +356,11 @@ async function sendMessage() {
       signal: ctrl.signal,
     });
 
-    if (resp.status === 401) { window.location.href = '/login'; return; }
+    if (resp.status === 401) {
+      bubbleEl.innerHTML = '请先登录后再使用对话功能。';
+      showLoginPrompt();
+      return;
+    }
     if (!resp.ok) {
       const errText = await resp.text();
       throw new Error(`HTTP ${resp.status}: ${errText}`);
@@ -310,8 +384,9 @@ async function sendMessage() {
 
         if (d.type === 'text') {
           answerText += d.content;
-          bubbleEl.textContent = answerText;
-          messagesEl.scrollTop = messagesEl.scrollHeight;
+          enqueueText(d.content);
+        } else if (d.type === 'done') {
+          finishTyping();
         } else if (d.type === 'tool') {
           if (!eventsEl) {
             eventsEl = document.createElement('div');
@@ -326,11 +401,13 @@ async function sendMessage() {
       }
     }
 
+    finishTyping();
     if (!answerText && !eventsEl) {
       bubbleEl.textContent = '(空回复)';
     }
     clearTimeout(timer);
   } catch (e) {
+    pending = ''; // 丢弃未渲染缓冲，避免错误提示后残留吐字
     const hint = e.name === 'AbortError'
       ? '请求超时，可能是代理拦截了 localhost 请求'
       : e.message;
@@ -376,12 +453,49 @@ async function loadHistory() {
       messagesEl.innerHTML = '';
       d.messages.forEach(m => addMessage(m.role, m.content));
     }
-  } catch (e) { console.error('loadHistory:', e); }
+  } catch (e) {
+    if (e instanceof AuthError) { showLoginPrompt(); return; }
+    console.error('loadHistory:', e);
+  }
 }
 
-if (!checkAuth()) throw new Error('redirecting');
-loadHistory();
-inputEl.focus();
+// ---------- 检查 API Key 配置 ----------
+async function checkApiKey() {
+  try {
+    const d = await fetchJSON('/api/settings/check');
+    if (!d.has_api_key) {
+      messagesEl.innerHTML = `
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:16px;">
+          <div style="font-size:15px;color:var(--fg-dim);text-align:center;line-height:1.8;">
+            尚未配置 LLM API Key，对话功能不可用。<br>
+            请前往「控制台 → 模型设置」页面填写 API Key 后再使用。
+          </div>
+          <a href="/console" style="padding:8px 20px;background:var(--accent);color:#fff;border-radius:8px;text-decoration:none;font-size:14px;">前往配置</a>
+        </div>`;
+      inputEl.disabled = true;
+      sendBtn.disabled = true;
+      inputEl.placeholder = '请先配置 API Key';
+      return false;
+    }
+    return true;
+  } catch (e) {
+    if (e instanceof AuthError) { showLoginPrompt(); return false; }
+    console.error('checkApiKey:', e);
+    return true;
+  }
+}
+
+(async () => {
+  if (!getToken()) {
+    showLoginPrompt();
+    return;
+  }
+  const ok = await checkApiKey();
+  if (ok) {
+    loadHistory();
+    inputEl.focus();
+  }
+})();
 </script>
 </body>
 </html>

@@ -38,13 +38,22 @@ class MemoryStore:
         self._lock = threading.Lock()
         with self._lock:
             self._conn.executescript(_SCHEMA)
-            # 迁移旧表：如果 messages 表缺少 user_id 列，自动添加
             cols = [r[1] for r in self._conn.execute("PRAGMA table_info(messages)").fetchall()]
             if "user_id" not in cols:
                 self._conn.execute(
                     "ALTER TABLE messages ADD COLUMN user_id INTEGER NOT NULL DEFAULT 1"
                 )
-            self._conn.execute(_INDEX)
+            if "session_id" in cols:
+                self._conn.execute(
+                    "UPDATE messages SET session_id = 1 WHERE session_id IS NULL"
+                )
+                self._conn.execute(
+                    "CREATE TABLE messages_new AS "
+                    "SELECT id, user_id, role, content, created_at FROM messages"
+                )
+                self._conn.execute("DROP TABLE messages")
+                self._conn.execute("ALTER TABLE messages_new RENAME TO messages")
+                self._conn.execute(_INDEX)
             self._conn.commit()
 
     def append(self, role, content):

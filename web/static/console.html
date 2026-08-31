@@ -255,6 +255,16 @@ a { color: var(--primary); text-decoration: none; }
 .history-item .role.assistant { color: var(--success); }
 .history-item .content { font-size: 13px; line-height: 1.6; white-space: pre-wrap; }
 
+/* ── 设置表单 ── */
+.form-list label { display: block; font-size: 13px; color: var(--text-secondary); margin-bottom: 6px; }
+.form-list input, .form-list select {
+  width: 100%; padding: 10px 12px; border: 1px solid #d9d9d9;
+  border-radius: 8px; font-size: 14px; outline: none; transition: border-color .2s;
+  margin-bottom: 14px; background: #fff;
+}
+.form-list input:focus, .form-list select:focus { border-color: var(--primary); }
+.form-hint { font-size: 12px; color: #999; margin-top: -8px; margin-bottom: 14px; line-height: 1.6; }
+
 /* ── Toast ── */
 .toast {
   position: fixed;
@@ -296,16 +306,26 @@ a { color: var(--primary); text-decoration: none; }
   border-bottom: 1px solid var(--border);
   display: flex; justify-content: space-between; align-items: center;
 }
-.modal-body { padding: 20px; }
-.modal-body label { display: block; font-size: 13px; color: var(--text-secondary); margin-bottom: 6px; }
-.modal-body input {
-  width: 100%; padding: 10px 12px; border: 1px solid #d9d9d9;
-  border-radius: 8px; font-size: 14px; outline: none; transition: border-color .2s;
-  margin-bottom: 14px;
+.modal-body { padding: 24px; }
+.modal-body label { display: block; font-size: 13px; font-weight: 500; color: var(--text); margin-bottom: 6px; }
+.modal-body input, .modal-body select {
+  width: 100%; padding: 9px 12px; border: 1px solid #d9d9d9;
+  border-radius: 8px; font-size: 14px; outline: none; transition: border-color .2s, box-shadow .2s;
+  margin-bottom: 4px; background: #fff;
 }
-.modal-body input:focus { border-color: var(--primary); }
-.modal-body input:last-child { margin-bottom: 0; }
+.modal-body input:focus, .modal-body select:focus {
+  border-color: var(--primary); box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+}
+.modal-body .form-hint { font-size: 12px; color: var(--text-secondary); margin-bottom: 16px; line-height: 1.5; }
+.modal-body .form-hint:last-child { margin-bottom: 0; }
+.modal-body input:last-of-type { margin-bottom: 4px; }
 .modal-body .msg { font-size: 14px; line-height: 1.6; color: var(--text); }
+.modal-body .checkbox-group { display: flex; flex-wrap: wrap; gap: 6px 0; margin-bottom: 14px; }
+.modal-body .check-item {
+  display: inline-flex; align-items: center; gap: 5px;
+  margin-right: 16px; font-size: 13px; color: var(--text); cursor: pointer;
+}
+.modal-body .check-item input { width: auto; margin: 0; }
 .modal-foot {
   padding: 12px 20px; display: flex; justify-content: flex-end; gap: 8px;
   border-top: 1px solid var(--border);
@@ -345,6 +365,9 @@ a { color: var(--primary); text-decoration: none; }
     </div>
     <div class="nav-item" data-page="system">
       <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span> 系统信息
+    </div>
+    <div class="nav-item" data-page="llm" id="nav-llm" style="display:none;">
+      <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg></span> 模型设置
     </div>
     <div class="nav-item" data-page="users" id="nav-users" style="display:none;">
       <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span> 用户管理
@@ -491,6 +514,21 @@ a { color: var(--primary); text-decoration: none; }
       </div>
     </div>
 
+    <!-- 模型设置 -->
+    <div class="page" id="page-llm">
+      <h2 class="page-title">模型设置</h2>
+      <div class="card" style="margin-bottom:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+          <div class="card-title" style="margin:0;">已保存的模型配置</div>
+          <button class="btn btn-primary btn-sm" onclick="showModelForm()">新增模型</button>
+        </div>
+        <table class="table">
+          <thead><tr><th>ID</th><th>名称</th><th>API 地址</th><th>模型</th><th>Key</th><th>状态</th><th>操作</th></tr></thead>
+          <tbody id="model-list"><tr><td colspan="7" class="empty">加载中…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
     <!-- 用户管理 -->
     <div class="page" id="page-users">
       <h2 class="page-title">用户管理</h2>
@@ -500,8 +538,8 @@ a { color: var(--primary); text-decoration: none; }
           <button class="btn btn-primary btn-sm" onclick="showCreateUser()">新增用户</button>
         </div>
         <table class="table">
-          <thead><tr><th>ID</th><th>用户名</th><th>创建时间</th><th>操作</th></tr></thead>
-          <tbody id="user-list"><tr><td colspan="4" class="empty">加载中…</td></tr></tbody>
+          <thead><tr><th>ID</th><th>用户名</th><th>页面权限</th><th>创建时间</th><th>操作</th></tr></thead>
+          <tbody id="user-list"><tr><td colspan="5" class="empty">加载中…</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -512,6 +550,13 @@ a { color: var(--primary); text-decoration: none; }
 
 <script>
 const $ = (id) => document.getElementById(id);
+
+// 管理页 key -> 中文名（与后端 auth/models.py 的 ALL_PAGES 保持一致）
+const PAGE_LABELS = {
+  dashboard: '概览', knowledge: '知识库管理', doclist: '文档列表',
+  chunks: '向量片段', history: '对话历史', system: '系统信息',
+  llm: '模型设置', users: '用户管理',
+};
 
 // ── 认证 ──
 function getToken() { return localStorage.getItem('token'); }
@@ -535,6 +580,7 @@ document.querySelectorAll('.nav-item').forEach(item => {
     if (page === 'chunks') loadChunks();
     if (page === 'history') loadHistory();
     if (page === 'system') loadSystem();
+    if (page === 'llm') loadModels();
     if (page === 'users') loadUsers();
   });
 });
@@ -879,26 +925,226 @@ function escapeHtml(s) {
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
+// ── 模型设置 ──
+const MODEL_PRESETS = {
+  openai:      { base_url: 'https://api.openai.com/v1',                         model: 'gpt-4o-mini' },
+  deepseek:    { base_url: 'https://api.deepseek.com',                          model: 'deepseek-chat' },
+  qwen:        { base_url: 'https://dashscope.aliyuncs.com/compatible-mode/v1', model: 'qwen-plus' },
+  zhipu:       { base_url: 'https://open.bigmodel.cn/api/paas/v4',              model: 'glm-4-flash' },
+  moonshot:    { base_url: 'https://api.moonshot.cn/v1',                        model: 'moonshot-v1-8k' },
+  siliconflow: { base_url: 'https://api.siliconflow.cn/v1',                     model: 'Qwen/Qwen2.5-7B-Instruct' },
+  ollama:      { base_url: 'http://localhost:11434/v1',                         model: 'qwen2.5:7b' },
+};
+
+function applyModelPreset(v) {
+  const p = MODEL_PRESETS[v];
+  if (!p) return;
+  const overlay = document.getElementById('model-modal');
+  if (!overlay) return;
+  overlay.querySelector('[name="base_url"]').value = p.base_url;
+  overlay.querySelector('[name="model_id"]').value = p.model;
+}
+
+async function loadModels() {
+  try {
+    const d = await fetchJSON('/api/models');
+    const tbody = $('model-list');
+    if (!d.models || !d.models.length) {
+      tbody.innerHTML = '<tr><td colspan="7" class="empty">暂无模型配置，点击「新增模型」添加</td></tr>';
+      return;
+    }
+    tbody.innerHTML = d.models.map(m => `
+      <tr>
+        <td>${m.id}</td>
+        <td>${escapeHtml(m.name)}</td>
+        <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(m.base_url)}</td>
+        <td>${escapeHtml(m.model)}</td>
+        <td>${m.has_api_key ? `<code>${escapeHtml(m.api_key_masked)}</code>` : '<span style="color:var(--fg-dim)">未配置</span>'}</td>
+        <td>${m.enabled
+          ? '<span style="color:#4ade80;">● 已启用</span>'
+          : '<span style="color:var(--fg-dim);">○ 未启用</span>'}</td>
+        <td>
+          ${m.enabled ? '' : `<button class="btn btn-sm btn-primary" onclick="enableModel(${m.id})">启用</button>`}
+          <button class="btn btn-sm btn-ghost" onclick="editModel(${m.id})">编辑</button>
+          ${m.enabled ? '' : `<button class="btn btn-sm btn-danger" onclick="confirmDeleteModel(${m.id}, '${escapeHtml(m.name)}')">删除</button>`}
+        </td>
+      </tr>`).join('');
+  } catch (e) { toast('加载失败: ' + e.message, 'error'); }
+}
+
+function _buildModelModalHTML(title, editId, data) {
+  const presetOpts = Object.entries(MODEL_PRESETS)
+    .map(([k, v]) => `<option value="${k}">${k}</option>`).join('');
+  return `
+    <div class="modal-overlay" id="model-modal">
+      <div class="modal-box" style="max-width:500px;">
+        <div class="modal-head">${escapeHtml(title)}</div>
+        <div class="modal-body">
+          <input type="hidden" name="edit_id" value="${editId || ''}">
+          <label>名称</label>
+          <input type="text" name="name" placeholder="如：DeepSeek-V4" value="${escapeHtml(data.name || '')}" autocomplete="off">
+          <label>常用服务预设</label>
+          <select name="preset" onchange="applyModelPreset(this.value)">
+            <option value="">— 选择预设自动填充 —</option>
+            ${presetOpts}
+          </select>
+          <label>API 地址（Base URL）</label>
+          <input type="text" name="base_url" placeholder="https://api.openai.com/v1" value="${escapeHtml(data.base_url || '')}" autocomplete="off">
+          <div class="form-hint" style="margin-bottom:8px;">多数服务地址需包含 <b>/v1</b> 后缀。</div>
+          <label>API Key</label>
+          <input type="password" name="api_key" placeholder="${data.has_api_key ? '留空保持不变' : '输入 API Key'}" value="" autocomplete="new-password">
+          <div class="form-hint" style="margin-bottom:8px;">${data.has_api_key ? `留空表示保持现有 Key 不变（当前：<code>${escapeHtml(data.api_key_masked)}</code>）` : '尚未配置 API Key，请输入。'}</div>
+          <label>模型标识</label>
+          <input type="text" name="model_id" placeholder="gpt-4o-mini" value="${escapeHtml(data.model || '')}" autocomplete="off">
+        </div>
+        <div class="modal-foot">
+          <button class="btn btn-ghost" id="model-test-btn" onclick="testModel()">测试连接</button>
+          <button class="btn btn-ghost" data-action="cancel">取消</button>
+          <button class="btn btn-primary" id="model-save-btn" onclick="saveModel()">保存</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function showModelForm() {
+  _closeModelModal();
+  document.body.insertAdjacentHTML('beforeend', _buildModelModalHTML('新增模型', '', {}));
+  _bindModelModalClose();
+  requestAnimationFrame(() => $('model-modal').classList.add('show'));
+}
+
+async function editModel(id) {
+  try {
+    const d = await fetchJSON(`/api/models/${id}`);
+    const m = d.model;
+    _closeModelModal();
+    document.body.insertAdjacentHTML('beforeend', _buildModelModalHTML('编辑模型', m.id, m));
+    _bindModelModalClose();
+    requestAnimationFrame(() => $('model-modal').classList.add('show'));
+    $('model-modal').querySelector('input[name="name"]').focus();
+  } catch (e) { toast('加载失败: ' + e.message, 'error'); }
+}
+
+function _closeModelModal() {
+  const existing = $('model-modal');
+  if (existing) existing.remove();
+}
+
+function _bindModelModalClose() {
+  const overlay = $('model-modal');
+  if (!overlay) return;
+  overlay.querySelector('[data-action="cancel"]').onclick = _closeModelModal;
+  overlay.onclick = (e) => { if (e.target === overlay) _closeModelModal(); };
+}
+
+async function saveModel() {
+  const overlay = $('model-modal');
+  if (!overlay) return;
+  const id = overlay.querySelector('[name="edit_id"]').value;
+  const payload = {
+    name: overlay.querySelector('[name="name"]').value.trim(),
+    base_url: overlay.querySelector('[name="base_url"]').value.trim(),
+    api_key: overlay.querySelector('[name="api_key"]').value.trim(),
+    model: overlay.querySelector('[name="model_id"]').value.trim(),
+  };
+  if (!payload.name || !payload.base_url || !payload.model) {
+    toast('名称、API 地址、模型标识不能为空', 'error'); return;
+  }
+  const btn = $('model-save-btn');
+  btn.disabled = true; btn.textContent = '保存中...';
+  try {
+    if (id) {
+      await fetchJSON(`/api/models/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+    } else {
+      await fetchJSON('/api/models', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+    }
+    toast('已保存');
+    _closeModelModal();
+    loadModels();
+  } catch (e) { toast('保存失败: ' + e.message, 'error'); }
+  btn.disabled = false; btn.textContent = '保存';
+}
+
+async function enableModel(id) {
+  try {
+    await fetchJSON(`/api/models/${id}/enable`, { method: 'POST' });
+    toast('已启用，立即生效');
+    loadModels();
+  } catch (e) { toast('启用失败: ' + e.message, 'error'); }
+}
+
+async function testModel() {
+  const overlay = $('model-modal');
+  if (!overlay) return;
+  const btn = $('model-test-btn');
+  btn.disabled = true; btn.textContent = '测试中...';
+  const id = overlay.querySelector('[name="edit_id"]').value;
+  const payload = {
+    base_url: overlay.querySelector('[name="base_url"]').value.trim(),
+    api_key: overlay.querySelector('[name="api_key"]').value.trim(),
+    model: overlay.querySelector('[name="model_id"]').value.trim(),
+  };
+  if (id) payload.model_id = parseInt(id);
+  try {
+    const d = await fetchJSON('/api/models/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }, 30000);
+    toast(d.message, d.ok ? 'success' : 'error');
+  } catch (e) { toast('测试失败: ' + e.message, 'error'); }
+  btn.disabled = false; btn.textContent = '测试连接';
+}
+
+function confirmDeleteModel(id, name) {
+  showModal('删除模型', `确认删除模型「${name}」？此操作不可撤销。`, async () => {
+    try {
+      await fetchJSON(`/api/models/${id}`, { method: 'DELETE' });
+      toast('已删除');
+      loadModels();
+    } catch (e) { toast('删除失败: ' + e.message, 'error'); }
+  });
+}
+
 // ── 用户管理 ──
+let _usersCache = [];
+
 async function loadUsers() {
   try {
     const d = await fetchJSON('/api/users');
+    _usersCache = d.users;
     const tbody = $('user-list');
     tbody.innerHTML = d.users.length
-      ? d.users.map(u => `
+      ? d.users.map(u => {
+          const perms = u.permissions || [];
+          const permHtml = u.id === 1
+            ? '<span class="tag tag-green">全部（管理员）</span>'
+            : perms.map(p => `<span class="tag tag-blue">${PAGE_LABELS[p] || p}</span>`).join(' ') || '<span class="tag tag-grey">无</span>';
+          return `
         <tr>
           <td>${u.id}</td>
           <td>${u.username}${u.id === 1 ? ' <span class="tag tag-green">管理员</span>' : ''}</td>
+          <td>${permHtml}</td>
           <td>${u.created_at || '-'}</td>
           <td>
             <button class="btn btn-primary btn-sm" onclick="resetPassword(${u.id}, '${u.username}')">重置密码</button>
+            ${u.id !== 1 ? `<button class="btn btn-sm" style="background:#f5f5f5;" onclick="editPermissions(${u.id})">设置权限</button>` : ''}
             ${u.id !== 1 ? `<button class="btn btn-danger btn-sm" onclick="removeUser(${u.id}, '${u.username}')">删除</button>` : ''}
           </td>
-        </tr>`).join('')
-      : '<tr><td colspan="4" class="empty">暂无用户</td></tr>';
+        </tr>`;
+        }).join('')
+      : '<tr><td colspan="5" class="empty">暂无用户</td></tr>';
   } catch (e) {
     if (e.message.includes('403') || e.message.includes('Forbidden')) {
-      $('user-list').innerHTML = '<tr><td colspan="4" class="empty">仅管理员可查看</td></tr>';
+      $('user-list').innerHTML = '<tr><td colspan="5" class="empty">没有用户管理权限</td></tr>';
     } else {
       toast('加载失败: ' + e.message, 'error');
     }
@@ -911,6 +1157,8 @@ function showCreateUser() {
     fields: [
       { name: 'username', label: '用户名', placeholder: '输入用户名' },
       { name: 'password', label: '密码', type: 'password', placeholder: '至少 6 位' },
+      { name: 'permissions', label: '页面权限（勾选该用户可见的管理页）', type: 'checkbox',
+        options: Object.entries(PAGE_LABELS).map(([v, l]) => ({ value: v, label: l, checked: v !== 'llm' && v !== 'users' })) },
     ],
     onConfirm: async (vals) => {
       if (!vals.username || !vals.password) { toast('用户名和密码不能为空', 'error'); return false; }
@@ -925,6 +1173,30 @@ function showCreateUser() {
         loadUsers();
         return true;
       } catch (e) { toast('创建失败: ' + e.message, 'error'); return false; }
+    }
+  });
+}
+
+function editPermissions(id) {
+  const u = _usersCache.find(x => x.id === id);
+  if (!u) return;
+  showModal({
+    title: `设置 ${u.username} 的页面权限`,
+    fields: [
+      { name: 'permissions', label: '勾选该用户可见的管理页', type: 'checkbox',
+        options: Object.entries(PAGE_LABELS).map(([v, l]) => ({ value: v, label: l, checked: (u.permissions || []).includes(v) })) },
+    ],
+    onConfirm: async (vals) => {
+      try {
+        await fetchJSON(`/api/users/${id}/permissions`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ permissions: vals.permissions }),
+        });
+        toast('权限已更新，该用户刷新管理页后生效');
+        loadUsers();
+        return true;
+      } catch (e) { toast('更新失败: ' + e.message, 'error'); return false; }
     }
   });
 }
@@ -973,9 +1245,12 @@ function showModal({ title, fields, message, onConfirm, confirmText = '确定', 
   overlay.className = 'modal-overlay';
   let bodyHTML = '';
   if (message) bodyHTML += `<div class="msg">${escapeHtml(message)}</div>`;
-  if (fields) bodyHTML += fields.map(f => `
-    <label>${f.label}</label>
-    <input type="${f.type || 'text'}" name="${f.name}" placeholder="${f.placeholder || ''}" autocomplete="new-password">`).join('');
+  if (fields) bodyHTML += fields.map(f => f.type === 'checkbox'
+    ? `<label>${f.label}</label><div class="checkbox-group" data-group="${f.name}">` +
+      f.options.map(o => `<label class="check-item"><input type="checkbox" value="${o.value}" ${o.checked ? 'checked' : ''}>${o.label}</label>`).join('') +
+      `</div>`
+    : `<label>${f.label}</label><input type="${f.type || 'text'}" name="${f.name}" placeholder="${f.placeholder || ''}" autocomplete="new-password">`
+  ).join('');
 
   overlay.innerHTML = `
     <div class="modal-box">
@@ -999,7 +1274,11 @@ function showModal({ title, fields, message, onConfirm, confirmText = '确定', 
     const vals = {};
     if (fields) {
       fields.forEach(f => {
-        vals[f.name] = overlay.querySelector(`input[name="${f.name}"]`).value.trim();
+        if (f.type === 'checkbox') {
+          vals[f.name] = [...overlay.querySelectorAll(`[data-group="${f.name}"] input:checked`)].map(i => i.value);
+        } else {
+          vals[f.name] = overlay.querySelector(`input[name="${f.name}"]`).value.trim();
+        }
       });
     }
     confirmBtn.disabled = true;
@@ -1018,10 +1297,19 @@ function showModal({ title, fields, message, onConfirm, confirmText = '确定', 
   }
 }
 
-// 检查是否 admin，显示用户管理菜单
+// 登录用户按权限渲染侧边栏菜单（权限由后端 /api/auth/me 返回，admin 恒为全部）
 fetchJSON('/api/auth/me').then(d => {
-  if (d.user.id === 1) {
-    $('nav-users').style.display = '';
+  const perms = d.user.permissions || [];
+  document.querySelectorAll('.nav-item').forEach(item => {
+    if (item.dataset.page) {
+      item.style.display = perms.includes(item.dataset.page) ? '' : 'none';
+    }
+  });
+  // 默认页（概览）无权限时，切到第一个有权限的页面
+  const active = document.querySelector('.nav-item.active');
+  if (!active || active.style.display === 'none') {
+    const first = [...document.querySelectorAll('.nav-item')].find(i => i.style.display !== 'none');
+    if (first) first.click();
   }
 }).catch(() => {});
 

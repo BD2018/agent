@@ -13,3 +13,7 @@ pywin32>=306; sys_platform == "win32"
 fastapi>=0.110
 uvicorn[standard]>=0.29
 python-multipart>=0.0.9
+# 认证与加密
+python-jose[cryptography]>=3.3
+passlib>=1.7
+cryptography>=42.0

@@ -9,6 +9,7 @@
 import sys
 
 from agent.core import Agent
+from agent.llm_settings import get_llm_settings
 from knowledge.ingest import ingest_docs
 
 HELP = """可用指令：
@@ -20,15 +21,18 @@ HELP = """可用指令：
 
 def main():
     print("=" * 48)
-    print("  我的专属 Agent（DeepSeek + RAG 知识库）")
+    print("  我的专属 Agent（OpenAI 兼容 LLM + RAG 知识库）")
     print("=" * 48)
     print(HELP)
 
-    try:
-        agent = Agent()
-    except RuntimeError as e:
-        print(e)
+    cfg = get_llm_settings()
+    if not cfg["api_key"]:
+        print("未配置 LLM API Key。请复制 .env.example 为 .env 填入，")
+        print("或启动 Web 服务（python web_main.py）后在管理页「模型设置」中配置。")
         sys.exit(1)
+    print(f"当前模型：{cfg['model']}  @  {cfg['base_url']}")
+
+    agent = Agent()
 
     restored = agent.memory.count()
     if restored:

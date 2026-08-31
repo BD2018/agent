@@ -1,16 +1,19 @@
-"""Agent 核心：DeepSeek + function calling 的「思考 -> 行动 -> 观察」循环。
+"""Agent 核心：OpenAI 格式兼容 API + function calling 的「思考 -> 行动 -> 观察」循环。
 
 工作流程：
 1. 组装 messages（系统提示 + 滑动窗口历史 + 本轮用户输入）；
-2. 调用 DeepSeek，模型要么直接给出最终回答，要么返回 tool_calls；
+2. 调用 LLM，模型要么直接给出最终回答，要么返回 tool_calls；
 3. 若有 tool_calls：本地执行工具，把结果以 role=tool 追加回 messages，继续循环；
 4. 若无 tool_calls：得到最终回答，写入历史并返回。
 
 按用户隔离：Agent(user_id) 使用该用户专属的 MemoryStore 和 Chroma collection。
+LLM 连接（地址/Key/模型）每轮对话前从 llm_settings 读取，
+Web 管理页修改后立即生效，无需重启。
 """
 from openai import OpenAI
 
 import config
+from agent.llm_settings import get_llm_settings
 from agent.memory import MemoryStore
 from agent.tools import TOOLS, execute_tool
 
@@ -23,30 +26,37 @@ SYSTEM_PROMPT = """你是用户的专属 AI 助手，请遵守以下规则：
 
 class Agent:
     def __init__(self, user_id: int = 1):
-        if not config.DEEPSEEK_API_KEY:
-            raise RuntimeError(
-                "未配置 DEEPSEEK_API_KEY。\n"
-                "请复制 .env.example 为 .env，并填入你的 DeepSeek API Key。"
-            )
         self.user_id = user_id
-        self.client = OpenAI(
-            api_key=config.DEEPSEEK_API_KEY,
-            base_url=config.DEEPSEEK_BASE_URL,
-        )
+        self._client = None
+        self._client_config = None  # 构建 _client 时使用的 (api_key, base_url)
         self.memory = MemoryStore(user_id)
+
+    def _get_client(self):
+        """按最新设置返回 (client, model)；地址或 Key 变化时自动重建 client。"""
+        cfg = get_llm_settings()
+        if not cfg["api_key"]:
+            raise RuntimeError(
+                "未配置 LLM API Key，请前往「控制台 → 系统设置」页面填写 API Key 后再使用对话功能。"
+            )
+        sig = (cfg["api_key"], cfg["base_url"])
+        if self._client is None or self._client_config != sig:
+            self._client = OpenAI(api_key=cfg["api_key"], base_url=cfg["base_url"])
+            self._client_config = sig
+        return self._client, cfg["model"]
 
     def reset(self):
         self.memory.clear()
 
     def chat(self, user_input, on_event=None):
         """处理一轮用户输入，返回最终回答。on_event 用于打印中间过程。"""
+        client, model = self._get_client()
         messages = [{"role": "system", "content": SYSTEM_PROMPT}]
         messages.extend(self.memory.load_recent(config.HISTORY_WINDOW))
         messages.append({"role": "user", "content": user_input})
 
         for _ in range(config.MAX_TOOL_ROUNDS):
-            resp = self.client.chat.completions.create(
-                model=config.MODEL,
+            resp = client.chat.completions.create(
+                model=model,
                 messages=messages,
                 tools=TOOLS,
             )
@@ -84,6 +94,7 @@ class Agent:
           "tool"  — 工具调用事件，前端展示为提示
           "done"  — 全部结束
         """
+        client, model = self._get_client()
         messages = [{"role": "system", "content": SYSTEM_PROMPT}]
         messages.extend(self.memory.load_recent(config.HISTORY_WINDOW))
         messages.append({"role": "user", "content": user_input})
@@ -91,8 +102,8 @@ class Agent:
         full_answer = ""
 
         for _ in range(config.MAX_TOOL_ROUNDS):
-            stream = self.client.chat.completions.create(
-                model=config.MODEL,
+            stream = client.chat.completions.create(
+                model=model,
                 messages=messages,
                 tools=TOOLS,
                 stream=True,
@@ -124,6 +135,9 @@ class Agent:
 
             if not has_tool_calls:
                 full_answer = "".join(content_parts)
+                if not full_answer:
+                    full_answer = "（API 返回了空内容，请检查 API 地址是否需要加 /v1 后缀，或模型名称是否正确）"
+                    yield ("text", full_answer)
                 self.memory.append("user", user_input)
                 self.memory.append("assistant", full_answer)
                 yield ("done", "")
