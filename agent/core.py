@@ -15,13 +15,15 @@ from openai import OpenAI
 import config
 from agent.llm_settings import get_llm_settings
 from agent.memory import MemoryStore
-from agent.tools import TOOLS, execute_tool
+from agent.tools import execute_tool, get_all_tools
 
 SYSTEM_PROMPT = """你是用户的专属 AI 助手，请遵守以下规则：
 1. 回答涉及用户私有资料（文档、笔记、项目信息）的问题前，必须先调用 search_knowledge_base 检索知识库；
 2. 如果知识库检索结果与问题无关，请如实说明「知识库中没有相关内容」，不要编造；
 3. 回答使用简体中文，简洁清晰；
-4. 需要知道当前时间时，调用 get_current_time。"""
+4. 需要知道当前时间时，调用 get_current_time；
+5. 涉及数值计算时，若有匹配的计算类工具，必须调用工具获得精确结果，禁止自行心算或估算；
+6. 工具返回错误时，根据错误信息修正参数后重试，仍失败则如实告知用户原因。"""
 
 
 class Agent:
@@ -47,10 +49,27 @@ class Agent:
     def reset(self):
         self.memory.clear()
 
+    def _build_system_prompt(self) -> str:
+        """基础系统提示 + 用户自定义角色定义（每轮实时读取，改动即时生效）。"""
+        from auth.models import get_role_prompt
+        role = get_role_prompt(self.user_id)
+        if role:
+            return SYSTEM_PROMPT + "\n\n【用户对本助手的角色定义】\n" + role
+        return SYSTEM_PROMPT
+
     def chat(self, user_input, on_event=None):
         """处理一轮用户输入，返回最终回答。on_event 用于打印中间过程。"""
+        # 固定问答优先拦截：语义相似度达标则直接返回预设回答
+        from knowledge.qa_store import search_qa
+        from knowledge.retriever import QUERY_INSTRUCTION
+        qa_answer = search_qa(self.user_id, user_input, QUERY_INSTRUCTION)
+        if qa_answer:
+            self.memory.append("user", user_input)
+            self.memory.append("assistant", qa_answer)
+            return qa_answer
+
         client, model = self._get_client()
-        messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+        messages = [{"role": "system", "content": self._build_system_prompt()}]
         messages.extend(self.memory.load_recent(config.HISTORY_WINDOW))
         messages.append({"role": "user", "content": user_input})
 
@@ -58,7 +77,7 @@ class Agent:
             resp = client.chat.completions.create(
                 model=model,
                 messages=messages,
-                tools=TOOLS,
+                tools=get_all_tools(),
             )
             msg = resp.choices[0].message
 
@@ -94,8 +113,19 @@ class Agent:
           "tool"  — 工具调用事件，前端展示为提示
           "done"  — 全部结束
         """
+        # 固定问答优先拦截
+        from knowledge.qa_store import search_qa
+        from knowledge.retriever import QUERY_INSTRUCTION
+        qa_answer = search_qa(self.user_id, user_input, QUERY_INSTRUCTION)
+        if qa_answer:
+            self.memory.append("user", user_input)
+            self.memory.append("assistant", qa_answer)
+            yield ("text", qa_answer)
+            yield ("done", "")
+            return
+
         client, model = self._get_client()
-        messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+        messages = [{"role": "system", "content": self._build_system_prompt()}]
         messages.extend(self.memory.load_recent(config.HISTORY_WINDOW))
         messages.append({"role": "user", "content": user_input})
 
@@ -105,7 +135,7 @@ class Agent:
             stream = client.chat.completions.create(
                 model=model,
                 messages=messages,
-                tools=TOOLS,
+                tools=get_all_tools(),
                 stream=True,
             )
 

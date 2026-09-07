@@ -23,11 +23,15 @@ ALL_PAGES = {
     "history": "对话历史",
     "system": "系统信息",
     "llm": "模型设置",
+    "tools": "工具管理",
     "users": "用户管理",
+    "apidocs": "接口文档",
 }
 
-# 新用户默认可见的常规页面（模型设置/用户管理需管理员单独勾选）
-DEFAULT_PAGES = ["dashboard", "knowledge", "doclist", "chunks", "history", "system"]
+# 新用户默认可见的常规页面（模型设置/用户管理/工具管理需管理员单独勾选）
+DEFAULT_PAGES = [
+    "dashboard", "knowledge", "doclist", "chunks", "history", "system", "apidocs",
+]
 
 
 def _clean_permissions(perms) -> list[str]:
@@ -92,11 +96,27 @@ def init_db():
         cols = [r["name"] for r in conn.execute("PRAGMA table_info(users)").fetchall()]
         if "permissions" not in cols:
             conn.execute("ALTER TABLE users ADD COLUMN permissions TEXT")
+        if "role_prompt" not in cols:
+            conn.execute("ALTER TABLE users ADD COLUMN role_prompt TEXT")
         # 存量用户回填默认权限
         conn.execute(
             "UPDATE users SET permissions = ? WHERE permissions IS NULL OR permissions = ''",
             (json.dumps(DEFAULT_PAGES, ensure_ascii=False),),
         )
+        # 存量用户补充新增的默认页 apidocs（接口文档对所有用户可见）
+        for r in conn.execute(
+            "SELECT id, permissions FROM users WHERE id != 1"
+        ).fetchall():
+            try:
+                perms = json.loads(r["permissions"]) if r["permissions"] else []
+            except (ValueError, TypeError):
+                perms = []
+            if isinstance(perms, list) and "apidocs" not in perms:
+                perms.append("apidocs")
+                conn.execute(
+                    "UPDATE users SET permissions = ? WHERE id = ?",
+                    (json.dumps(perms, ensure_ascii=False), r["id"]),
+                )
         existing = conn.execute("SELECT id FROM users WHERE username = ?", ("admin",)).fetchone()
         if not existing:
             conn.execute(
@@ -203,6 +223,28 @@ def update_password(user_id: int, new_password: str) -> bool:
         cursor = conn.execute(
             "UPDATE users SET password_hash = ? WHERE id = ?",
             (_hash_password(new_password), user_id),
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+
+
+def get_role_prompt(user_id: int) -> str:
+    """读取用户自定义的 Agent 角色定义，未设置返回空串。"""
+    with _get_conn() as conn:
+        row = conn.execute(
+            "SELECT role_prompt FROM users WHERE id = ?", (user_id,)
+        ).fetchone()
+    return (row["role_prompt"] or "").strip() if row else ""
+
+
+def set_role_prompt(user_id: int, text: str) -> bool:
+    """保存用户自定义的 Agent 角色定义。"""
+    text = (text or "").strip()
+    if len(text) > 2000:
+        raise ValueError("角色定义不能超过 2000 字")
+    with _lock, _get_conn() as conn:
+        cursor = conn.execute(
+            "UPDATE users SET role_prompt = ? WHERE id = ?", (text, user_id)
         )
         conn.commit()
         return cursor.rowcount > 0

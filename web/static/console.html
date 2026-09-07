@@ -49,6 +49,19 @@ a { color: var(--primary); text-decoration: none; }
   animation: pulse 2s infinite;
 }
 @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .5; } }
+.topbar-right { display: flex; align-items: center; gap: 18px; }
+.topbar-user {
+  display: flex; align-items: center; gap: 8px;
+  cursor: pointer; font-size: 13px; color: #d9e0f0;
+  padding: 4px 10px; border-radius: 6px;
+}
+.topbar-user:hover { background: rgba(255,255,255,0.08); }
+.topbar-avatar {
+  width: 26px; height: 26px; border-radius: 50%;
+  background: var(--primary); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 600; flex-shrink: 0;
+}
 
 /* ── 布局 ── */
 .layout { display: flex; height: calc(100vh - 56px); overflow: hidden; }
@@ -73,6 +86,7 @@ a { color: var(--primary); text-decoration: none; }
 }
 .nav-item:hover { color: #fff; background: rgba(255,255,255,0.06); }
 .nav-item.active { background: var(--sidebar-active); color: #fff; }
+a.nav-item { text-decoration: none; }
 .nav-icon { width: 20px; height: 20px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
 .nav-icon svg { width: 18px; height: 18px; }
 .sidebar .divider { height: 1px; background: rgba(255,255,255,0.1); margin: 8px 16px; }
@@ -146,6 +160,7 @@ a { color: var(--primary); text-decoration: none; }
 .tag-blue { background: var(--primary-light); color: var(--primary); }
 .tag-green { background: #f6ffed; color: var(--success); }
 .tag-grey { background: #f5f5f5; color: #999; }
+.tag-orange { background: #fff7e6; color: #d46b08; }
 
 /* ── 上传区 ── */
 .drop-zone {
@@ -181,6 +196,32 @@ a { color: var(--primary); text-decoration: none; }
   width: 0%;
   transition: width .3s;
 }
+
+/* ── Tab 切换 ── */
+.tab-bar {
+  display: flex;
+  gap: 0;
+  border-bottom: 2px solid var(--border);
+}
+.tab-btn {
+  padding: 8px 18px;
+  border: none;
+  background: none;
+  font-size: 14px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: all .15s;
+}
+.tab-btn:hover { color: var(--primary); }
+.tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); font-weight: 500; }
+.kb-tab-panel { display: none; }
+.kb-tab-panel.active { display: block; }
+.tools-tab-panel { display: none; }
+.tools-tab-panel.active { display: block; }
+.profile-tab-panel { display: none; }
+.profile-tab-panel.active { display: block; }
 
 /* ── 按钮 ── */
 .btn {
@@ -268,18 +309,18 @@ a { color: var(--primary); text-decoration: none; }
 /* ── Toast ── */
 .toast {
   position: fixed;
-  top: 70px;
-  right: 24px;
+  top: 24px;
+  left: 50%;
+  transform: translate(-50%, -10px);
   padding: 10px 20px;
   border-radius: var(--radius);
   color: #fff;
   font-size: 14px;
   opacity: 0;
-  transform: translateY(-10px);
   transition: all .3s;
-  z-index: 999;
+  z-index: 10000;
 }
-.toast.show { opacity: 1; transform: translateY(0); }
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
 .toast.success { background: var(--success); }
 .toast.error { background: var(--danger); }
 
@@ -295,11 +336,12 @@ a { color: var(--primary); text-decoration: none; }
 }
 .modal-overlay.show { opacity: 1; }
 .modal-box {
-  background: #fff; border-radius: 12px; width: 420px;
+  background: #fff; border-radius: 12px; width: 420px; max-width: 92vw;
   box-shadow: 0 8px 32px rgba(0,0,0,0.2);
   transform: translateY(20px); transition: transform .2s;
   overflow: hidden;
 }
+.modal-box.modal-lg { width: 780px; }
 .modal-overlay.show .modal-box { transform: translateY(0); }
 .modal-head {
   padding: 16px 20px; font-size: 15px; font-weight: 600;
@@ -307,18 +349,26 @@ a { color: var(--primary); text-decoration: none; }
   display: flex; justify-content: space-between; align-items: center;
 }
 .modal-body { padding: 24px; }
-.modal-body label { display: block; font-size: 13px; font-weight: 500; color: var(--text); margin-bottom: 6px; }
+.modal-body label { display: block; font-size: 13px; font-weight: 500; color: var(--text); margin: 14px 0 6px; }
+.modal-body label:first-of-type { margin-top: 0; }
 .modal-body input, .modal-body select {
   width: 100%; padding: 9px 12px; border: 1px solid #d9d9d9;
   border-radius: 8px; font-size: 14px; outline: none; transition: border-color .2s, box-shadow .2s;
-  margin-bottom: 4px; background: #fff;
+  background: #fff;
 }
 .modal-body input:focus, .modal-body select:focus {
   border-color: var(--primary); box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
 }
-.modal-body .form-hint { font-size: 12px; color: var(--text-secondary); margin-bottom: 16px; line-height: 1.5; }
-.modal-body .form-hint:last-child { margin-bottom: 0; }
-.modal-body input:last-of-type { margin-bottom: 4px; }
+.modal-body textarea {
+  width: 100%; padding: 9px 12px; border: 1px solid #d9d9d9;
+  border-radius: 8px; font-size: 13px; outline: none; transition: border-color .2s, box-shadow .2s;
+  background: #fff; resize: vertical;
+  font-family: "Cascadia Code", "Consolas", monospace;
+}
+.modal-body textarea:focus {
+  border-color: var(--primary); box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+}
+.modal-body .form-hint { font-size: 12px; color: var(--text-secondary); margin: 6px 0 0; line-height: 1.5; }
 .modal-body .msg { font-size: 14px; line-height: 1.6; color: var(--text); }
 .modal-body .checkbox-group { display: flex; flex-wrap: wrap; gap: 6px 0; margin-bottom: 14px; }
 .modal-body .check-item {
@@ -333,15 +383,24 @@ a { color: var(--primary); text-decoration: none; }
 .modal-foot .btn { min-width: 64px; }
 .btn-ghost { background: #f5f5f5; color: #666; }
 .btn-ghost:hover { background: #e8e8e8; }
+.btn-copy { border:none; background:transparent; color:var(--fg-dim); cursor:pointer; padding:2px; vertical-align:middle; line-height:0; }
+.btn-copy:hover { color:var(--accent); }
+.btn-copy svg { width:14px; height:14px; }
 </style>
 </head>
 <body>
 
 <div class="topbar">
   <h1>Agent 管理系统</h1>
-  <div class="status-badge">
-    <span class="status-dot"></span>
-    <span id="server-status">运行中</span>
+  <div class="topbar-right">
+    <div class="status-badge">
+      <span class="status-dot"></span>
+      <span id="server-status">运行中</span>
+    </div>
+    <div class="topbar-user" id="topbar-user" onclick="showProfile()" title="个人资料">
+      <span class="topbar-avatar" id="topbar-avatar">?</span>
+      <span id="topbar-username">…</span>
+    </div>
   </div>
 </div>
 
@@ -369,9 +428,15 @@ a { color: var(--primary); text-decoration: none; }
     <div class="nav-item" data-page="llm" id="nav-llm" style="display:none;">
       <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg></span> 模型设置
     </div>
+    <div class="nav-item" data-page="tools" id="nav-tools" style="display:none;">
+      <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span> 工具管理
+    </div>
     <div class="nav-item" data-page="users" id="nav-users" style="display:none;">
       <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span> 用户管理
     </div>
+    <a class="nav-item" data-page="apidocs" id="nav-apidocs" href="/api-docs" target="_blank" rel="noopener" title="在新标签页打开接口文档">
+      <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></span> 接口文档
+    </a>
     <div class="divider"></div>
     <a class="link-chat" href="/">
       <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></span> 对话页面
@@ -425,25 +490,41 @@ a { color: var(--primary); text-decoration: none; }
     <!-- 知识库管理 -->
     <div class="page" id="page-knowledge">
       <h2 class="page-title">知识库管理</h2>
-      <div class="card">
-        <div class="card-title">上传文档</div>
-        <div class="drop-zone" id="drop-zone">
-          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
-          <div>点击或拖拽文件到此处上传</div>
-          <div class="hint">支持 .md .txt .pdf .docx .xlsx .csv .tsv .json .html</div>
-          <input type="file" id="file-input" multiple style="display:none">
+      <div class="tab-bar" style="margin-bottom:16px;">
+        <button class="tab-btn active" data-kb-tab="docs" onclick="switchKbTab('docs')">文档列表</button>
+        <button class="tab-btn" data-kb-tab="qa" onclick="switchKbTab('qa')">固定问答</button>
+      </div>
+      <div class="kb-tab-panel active" data-kb-panel="docs">
+        <div class="card" style="margin-bottom:16px;">
+          <div class="drop-zone" id="drop-zone">
+            <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+            <div>点击或拖拽文件到此处上传</div>
+            <div class="hint">支持 .md .txt .pdf .docx .xlsx .csv .tsv .json .html</div>
+            <input type="file" id="file-input" multiple style="display:none">
+          </div>
+          <div class="upload-progress" id="upload-progress">
+            <div id="upload-status" style="margin-bottom:6px;font-size:13px;"></div>
+            <div class="progress-bar"><div class="fill" id="progress-fill"></div></div>
+          </div>
         </div>
-        <div class="upload-progress" id="upload-progress">
-          <div id="upload-status" style="margin-bottom:6px;font-size:13px;"></div>
-          <div class="progress-bar"><div class="fill" id="progress-fill"></div></div>
+        <div class="card">
+          <table class="table">
+            <thead><tr><th>文件名</th><th>操作</th></tr></thead>
+            <tbody id="doc-list"><tr><td colspan="2" class="empty">加载中…</td></tr></tbody>
+          </table>
         </div>
       </div>
-      <div class="card">
-        <div class="card-title">文档列表</div>
-        <table class="table">
-          <thead><tr><th>文件名</th><th>操作</th></tr></thead>
-          <tbody id="doc-list"><tr><td colspan="2" class="empty">加载中…</td></tr></tbody>
-        </table>
+      <div class="kb-tab-panel" data-kb-panel="qa">
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <div class="form-hint" style="margin:0;">语义相似度达标时直接返回预设回答，跳过 LLM。阈值建议 0.65-0.80。</div>
+            <button class="btn btn-primary btn-sm" onclick="showQaForm()">新增问答</button>
+          </div>
+          <table class="table">
+            <thead><tr><th style="width:40px;">ID</th><th>问题</th><th>回答</th><th style="width:70px;">阈值</th><th style="width:60px;">状态</th><th style="width:150px;">操作</th></tr></thead>
+            <tbody id="qa-list"><tr><td colspan="6" class="empty">加载中…</td></tr></tbody>
+          </table>
+        </div>
       </div>
     </div>
 
@@ -543,6 +624,49 @@ a { color: var(--primary); text-decoration: none; }
         </table>
       </div>
     </div>
+
+    <!-- 工具管理 -->
+    <div class="page" id="page-tools">
+      <h2 class="page-title">工具管理</h2>
+      <div class="tab-bar" style="margin-bottom:16px;">
+        <button class="tab-btn active" data-tools-tab="tools" onclick="switchToolsTab('tools')">工具列表</button>
+        <button class="tab-btn" data-tools-tab="datasource" onclick="switchToolsTab('datasource')">数据源管理</button>
+      </div>
+      <div class="tools-tab-panel active" data-tools-panel="tools">
+        <div class="card">
+          <div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
+            <div style="display:flex;gap:0;border:1px solid var(--border);border-radius:6px;overflow:hidden;">
+              <button class="btn btn-sm" id="tool-view-card-btn" style="background:var(--primary);color:#fff;" onclick="switchToolView('card')">块状</button>
+              <button class="btn btn-sm" id="tool-view-table-btn" style="background:#fff;color:#666;" onclick="switchToolView('table')">列表</button>
+            </div>
+            <button class="btn btn-sm" onclick="loadToolsPage()">刷新</button>
+            <button class="btn btn-primary btn-sm" onclick="showToolForm()">新增工具</button>
+          </div>
+          <div id="tools-card-container" style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px;">
+            <div class="empty" style="grid-column:1/-1;">加载中…</div>
+          </div>
+          <div id="tools-table-container" style="display:none;">
+            <table class="table">
+              <thead><tr><th style="width:46px;">ID</th><th style="width:200px;">名称</th><th style="width:96px;">类型</th><th>描述</th><th style="width:76px;">状态</th><th style="width:250px;">操作</th></tr></thead>
+              <tbody id="tools-table-body"><tr><td colspan="6" class="empty">加载中…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="tools-tab-panel" data-tools-panel="datasource">
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+            <div class="form-hint" style="margin:0;">供「本地函数」型工具取数使用：SQL 模板参数化执行，建议使用只读数据库账号。</div>
+            <button class="btn btn-primary btn-sm" onclick="showDatasourceForm()">新增数据源</button>
+          </div>
+          <table class="table">
+            <thead><tr><th style="width:46px;">ID</th><th>名称</th><th>主机</th><th>数据库</th><th>用户</th><th style="width:210px;">操作</th></tr></thead>
+            <tbody id="datasource-list"><tr><td colspan="6" class="empty">加载中…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -555,7 +679,7 @@ const $ = (id) => document.getElementById(id);
 const PAGE_LABELS = {
   dashboard: '概览', knowledge: '知识库管理', doclist: '文档列表',
   chunks: '向量片段', history: '对话历史', system: '系统信息',
-  llm: '模型设置', users: '用户管理',
+  llm: '模型设置', tools: '工具管理', users: '用户管理', apidocs: '接口文档',
 };
 
 // ── 认证 ──
@@ -569,6 +693,7 @@ if (!getToken()) { window.location.href = '/login'; }
 // ── 导航切换 ──
 document.querySelectorAll('.nav-item').forEach(item => {
   item.addEventListener('click', () => {
+    if (item.getAttribute('target') === '_blank') return; // 外链（如接口文档）由浏览器新标签页打开
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     item.classList.add('active');
@@ -581,11 +706,23 @@ document.querySelectorAll('.nav-item').forEach(item => {
     if (page === 'history') loadHistory();
     if (page === 'system') loadSystem();
     if (page === 'llm') loadModels();
+    if (page === 'tools') loadToolsPage();
     if (page === 'users') loadUsers();
   });
 });
 
 // ── 通用 ──
+function copyToClipboard(text) {
+  if (!text) return;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => toast('已复制')).catch(() => { document.execCommand('copy'); toast('已复制'); });
+  } else {
+    const ta = document.createElement('textarea');
+    ta.value = text; document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); ta.remove(); toast('已复制');
+  }
+}
+
 function toast(msg, type = 'success') {
   const el = $('toast');
   el.textContent = msg;
@@ -631,6 +768,26 @@ async function loadDashboard() {
 }
 
 // ── 知识库管理 ──
+function switchKbTab(tab) {
+  document.querySelectorAll('.tab-btn[data-kb-tab]').forEach(b => {
+    b.classList.toggle('active', b.dataset.kbTab === tab);
+  });
+  document.querySelectorAll('.kb-tab-panel').forEach(p => {
+    p.classList.toggle('active', p.dataset.kbPanel === tab);
+  });
+}
+
+// ── 工具管理 Tab ──
+function switchToolsTab(tab) {
+  document.querySelectorAll('.tab-btn[data-tools-tab]').forEach(b => {
+    b.classList.toggle('active', b.dataset.toolsTab === tab);
+  });
+  document.querySelectorAll('.tools-tab-panel').forEach(p => {
+    p.classList.toggle('active', p.dataset.toolsPanel === tab);
+  });
+}
+
+
 async function loadDocs() {
   try {
     const d = await fetchJSON('/api/docs');
@@ -645,7 +802,122 @@ async function loadDocs() {
           </td>
         </tr>`).join('')
       : '<tr><td colspan="2" class="empty">暂无文档</div></tr>';
+    loadQaPairs();
   } catch (e) { toast('加载失败: ' + e.message, 'error'); }
+}
+
+// ── 固定问答 ──
+async function loadQaPairs() {
+  const tbody = $('qa-list');
+  if (!tbody) return;
+  try {
+    const d = await fetchJSON('/api/qa-pairs');
+    if (!d.qa_pairs.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="empty">暂无固定问答，点击「新增问答」添加</td></tr>';
+      return;
+    }
+    tbody.innerHTML = d.qa_pairs.map(q => `
+      <tr>
+        <td>${q.id}</td>
+        <td style="max-width:220px;word-break:break-all;">${escapeHtml(q.question)}</td>
+        <td style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(q.answer)}">${escapeHtml(q.answer)}</td>
+        <td>${q.similarity_threshold}</td>
+        <td style="white-space:nowrap;">${q.enabled ? '<span style="color:#4ade80;">● 启用</span>' : '<span style="color:var(--fg-dim);">○ 禁用</span>'}</td>
+        <td style="white-space:nowrap;">
+          <button class="btn btn-sm btn-ghost" onclick="editQaPair(${q.id})">编辑</button>
+          <button class="btn btn-sm ${q.enabled ? 'btn-ghost' : 'btn-primary'}" onclick="toggleQaPair(${q.id}, ${!q.enabled})">${q.enabled ? '禁用' : '启用'}</button>
+          <button class="btn btn-sm btn-danger" onclick="confirmDeleteQa(${q.id})">删除</button>
+        </td>
+      </tr>`).join('');
+  } catch (e) { toast('加载问答失败: ' + e.message, 'error'); }
+}
+
+function showQaForm(data) {
+  data = data || {};
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal-box">
+      <div class="modal-head">${data.id ? '编辑问答' : '新增固定问答'}</div>
+      <div class="modal-body">
+        <label>问题（用户提问语义相似度达标时触发）</label>
+        <input type="text" name="question" value="${escapeHtml(data.question || '')}" placeholder="如：公司年假有几天？">
+        <label>固定回答</label>
+        <textarea name="answer" rows="4" placeholder="如：入职满1年5天，满3年10天，满5年15天。">${escapeHtml(data.answer || '')}</textarea>
+        <label>相似度阈值（0.5-0.99，建议 0.65-0.80，越低越容易命中）</label>
+        <input type="number" name="threshold" value="${data.similarity_threshold || 0.70}" step="0.01" min="0.5" max="0.99">
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-ghost" data-action="cancel">取消</button>
+        <button class="btn btn-primary" id="qa-save-btn">保存</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  requestAnimationFrame(() => overlay.classList.add('show'));
+  const close = () => { overlay.classList.remove('show'); setTimeout(() => overlay.remove(), 200); };
+  overlay.querySelector('[data-action="cancel"]').onclick = close;
+  overlay.onclick = (e) => { if (e.target === overlay) close(); };
+
+  const saveBtn = $('qa-save-btn');
+  saveBtn.onclick = async () => {
+    const question = overlay.querySelector('[name="question"]').value.trim();
+    const answer = overlay.querySelector('[name="answer"]').value.trim();
+    const threshold = parseFloat(overlay.querySelector('[name="threshold"]').value);
+    if (!question || !answer) { toast('问题和回答不能为空', 'error'); return; }
+    saveBtn.disabled = true; saveBtn.textContent = '保存中...';
+    try {
+      const body = JSON.stringify({ question, answer, similarity_threshold: threshold });
+      if (data.id) {
+        await fetchJSON(`/api/qa-pairs/${data.id}`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' }, body,
+        });
+      } else {
+        await fetchJSON('/api/qa-pairs', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body,
+        });
+      }
+      toast('已保存');
+      close();
+      loadQaPairs();
+    } catch (e) { toast('保存失败: ' + e.message, 'error'); saveBtn.disabled = false; saveBtn.textContent = '保存'; }
+  };
+}
+
+async function editQaPair(id) {
+  try {
+    const d = await fetchJSON('/api/qa-pairs');
+    const qa = (d.qa_pairs || []).find(q => q.id === id);
+    if (!qa) { toast('问答对不存在', 'error'); return; }
+    showQaForm(qa);
+  } catch (e) { toast('加载失败: ' + e.message, 'error'); }
+}
+
+async function toggleQaPair(id, enabled) {
+  try {
+    await fetchJSON(`/api/qa-pairs/${id}/enabled`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled }),
+    });
+    toast(enabled ? '已启用' : '已禁用');
+    loadQaPairs();
+  } catch (e) { toast('操作失败: ' + e.message, 'error'); }
+}
+
+function confirmDeleteQa(id) {
+  showModal({
+    title: '删除问答',
+    message: '确定删除该固定问答？删除后不再匹配该问题。',
+    confirmText: '删除',
+    danger: true,
+    onConfirm: async () => {
+      try {
+        await fetchJSON(`/api/qa-pairs/${id}`, { method: 'DELETE' });
+        toast('已删除');
+        loadQaPairs();
+        return true;
+      } catch (e) { toast('删除失败: ' + e.message, 'error'); return false; }
+    },
+  });
 }
 
 async function deleteDoc(name) {
@@ -959,7 +1231,7 @@ async function loadModels() {
         <td>${escapeHtml(m.name)}</td>
         <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(m.base_url)}</td>
         <td>${escapeHtml(m.model)}</td>
-        <td>${m.has_api_key ? `<code>${escapeHtml(m.api_key_masked)}</code>` : '<span style="color:var(--fg-dim)">未配置</span>'}</td>
+        <td>${m.has_api_key ? `<code>${escapeHtml(m.api_key_masked)}</code><button class="btn-copy" onclick="copyToClipboard(this.previousElementSibling.textContent)" title="复制"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button>` : '<span style="color:var(--fg-dim)">未配置</span>'}</td>
         <td>${m.enabled
           ? '<span style="color:#4ade80;">● 已启用</span>'
           : '<span style="color:var(--fg-dim);">○ 未启用</span>'}</td>
@@ -1034,7 +1306,6 @@ function _bindModelModalClose() {
   const overlay = $('model-modal');
   if (!overlay) return;
   overlay.querySelector('[data-action="cancel"]').onclick = _closeModelModal;
-  overlay.onclick = (e) => { if (e.target === overlay) _closeModelModal(); };
 }
 
 async function saveModel() {
@@ -1239,6 +1510,706 @@ function removeUser(id, username) {
   });
 }
 
+// ── 工具管理 ──
+let _allTools = { builtin: [], custom: [] };
+let _datasources = [];
+let _toolView = 'card';
+
+async function loadToolsPage() {
+  try {
+    const [t, d] = await Promise.all([
+      fetchJSON('/api/tools'),
+      fetchJSON('/api/datasources'),
+    ]);
+    _allTools = t;
+    _datasources = d.datasources || [];
+    renderTools();
+    renderDatasources();
+  } catch (e) { toast('加载失败: ' + e.message, 'error'); }
+}
+
+function switchToolView(view) {
+  _toolView = view;
+  $('tools-card-container').style.display = view === 'card' ? 'grid' : 'none';
+  $('tools-table-container').style.display = view === 'table' ? 'block' : 'none';
+  $('tool-view-card-btn').style.background = view === 'card' ? 'var(--primary)' : '#fff';
+  $('tool-view-card-btn').style.color = view === 'card' ? '#fff' : '#666';
+  $('tool-view-table-btn').style.background = view === 'table' ? 'var(--primary)' : '#fff';
+  $('tool-view-table-btn').style.color = view === 'table' ? '#fff' : '#666';
+  renderTools();
+}
+
+function _toolTypeTag(t) {
+  if (t.builtin) return '<span class="tag tag-grey">内置</span>';
+  return t.type === 'http'
+    ? '<span class="tag tag-orange">HTTP</span>'
+    : '<span class="tag tag-green">本地函数</span>';
+}
+
+function _toolActions(t) {
+  if (t.builtin) {
+    return `<button class="btn btn-sm ${t.enabled ? 'btn-ghost' : 'btn-primary'}" onclick="toggleBuiltinTool('${t.name}', ${!t.enabled})">${t.enabled ? '禁用' : '启用'}</button>`;
+  }
+  return `
+    <button class="btn btn-sm btn-ghost" onclick="showTestTool(${t.id})">试调</button>
+    <button class="btn btn-sm btn-ghost" onclick="editTool(${t.id})">编辑</button>
+    <button class="btn btn-sm ${t.enabled ? 'btn-ghost' : 'btn-primary'}" onclick="toggleCustomTool(${t.id}, ${!t.enabled})">${t.enabled ? '禁用' : '启用'}</button>
+    <button class="btn btn-sm btn-danger" onclick="confirmDeleteTool(${t.id}, '${escapeHtml(t.name)}')">删除</button>`;
+}
+
+function _toolParamsText(t) {
+  const props = (t.parameters && t.parameters.properties) || {};
+  const required = (t.parameters && t.parameters.required) || [];
+  const names = Object.keys(props);
+  if (!names.length) return '无参数';
+  return names.map(n => `${n}${required.includes(n) ? '*' : ''}: ${props[n].type}`).join('   ');
+}
+
+function renderTools() {
+  const all = [...(_allTools.builtin || []), ...(_allTools.custom || [])];
+  if (!all.length) {
+    $('tools-card-container').innerHTML = '<div class="empty" style="grid-column:1/-1;">暂无工具</div>';
+    $('tools-table-body').innerHTML = '<tr><td colspan="6" class="empty">暂无工具</td></tr>';
+    return;
+  }
+  if (_toolView === 'card') {
+    $('tools-card-container').innerHTML = all.map(t => `
+      <div class="tool-card" style="opacity:${t.enabled ? 1 : 0.55};">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:8px;">
+          <h4 style="margin:0;word-break:break-all;">${escapeHtml(t.name)}</h4>
+          <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;">
+            ${_toolTypeTag(t)}
+            ${t.enabled ? '<span class="tag tag-green">启用</span>' : '<span class="tag tag-grey">禁用</span>'}
+          </div>
+        </div>
+        <p>${escapeHtml(t.description)}</p>
+        <div class="tool-params">${escapeHtml(_toolParamsText(t))}</div>
+        <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap;">${_toolActions(t)}</div>
+      </div>`).join('');
+  } else {
+    $('tools-table-body').innerHTML = all.map(t => `
+      <tr style="opacity:${t.enabled ? 1 : 0.55};">
+        <td>${t.builtin ? '-' : t.id}</td>
+        <td><b style="word-break:break-all;">${escapeHtml(t.name)}</b></td>
+        <td>${_toolTypeTag(t)}</td>
+        <td style="max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(t.description)}">${escapeHtml(t.description)}</td>
+        <td>${t.enabled ? '<span style="color:#4ade80;">● 启用</span>' : '<span style="color:var(--fg-dim);">○ 禁用</span>'}</td>
+        <td style="white-space:nowrap;">${_toolActions(t)}</td>
+      </tr>`).join('');
+  }
+}
+
+function _paramRowHTML(p) {
+  p = p || {};
+  const types = ['string', 'number', 'integer', 'boolean'];
+  return `
+  <div class="tool-param-row" style="display:flex;gap:6px;margin-bottom:6px;align-items:center;">
+    <input type="text" name="param_name" placeholder="参数名" value="${escapeHtml(p.name || '')}" style="flex:1.2;margin-bottom:0;">
+    <select name="param_type" style="flex:1;margin-bottom:0;">
+      ${types.map(x => `<option value="${x}" ${(p.type || 'string') === x ? 'selected' : ''}>${x}</option>`).join('')}
+    </select>
+    <input type="text" name="param_desc" placeholder="参数说明" value="${escapeHtml(p.description || '')}" style="flex:1.8;margin-bottom:0;">
+    <label style="display:flex;align-items:center;gap:4px;font-size:12px;margin:0;white-space:nowrap;cursor:pointer;">
+      <input type="checkbox" name="param_required" style="width:auto;margin:0;" ${p.required !== false ? 'checked' : ''}>必填
+    </label>
+    <button class="btn btn-sm btn-ghost" type="button" onclick="this.closest('.tool-param-row').remove()">删</button>
+  </div>`;
+}
+
+function _buildToolModalHTML(title, data) {
+  data = data || {};
+  const type = data.type || 'local';
+  const cfg = data.config || {};
+  const params = (data.params && data.params.length) ? data.params : [{ name: '', type: 'string', description: '', required: true }];
+  const paramRows = params.map(p => _paramRowHTML(p)).join('');
+  const dsOptions = ['<option value="">— 不使用数据源（纯公式，参数全部由模型提供）—</option>']
+    .concat(_datasources.map(d =>
+      `<option value="${d.id}" ${cfg.datasource_id == d.id ? 'selected' : ''}>${escapeHtml(d.name)}（${escapeHtml(d.host)}）</option>`))
+    .join('');
+  const methods = ['GET', 'POST', 'PUT', 'DELETE'];
+  return `
+  <div class="modal-overlay" id="tool-modal">
+    <div class="modal-box" style="width:820px;max-width:92vw;max-height:88vh;display:flex;flex-direction:column;">
+      <div class="modal-head">${escapeHtml(title)}</div>
+      <div class="modal-body" style="overflow-y:auto;">
+        <input type="hidden" name="edit_id" value="${data.id || ''}">
+        <label>工具类型</label>
+        <select name="tool_type" onchange="onToolTypeChange(this.value)">
+          <option value="local" ${type === 'local' ? 'selected' : ''}>本地函数（公式计算，可选 MySQL 取数）</option>
+          <option value="http" ${type === 'http' ? 'selected' : ''}>HTTP（调用外部接口）</option>
+        </select>
+        <div class="form-hint">本地函数：后端执行公式计算（可先按 SQL 模板查库取数）；HTTP：后端按配置发起 HTTP 请求，响应作为工具结果。</div>
+        <label>工具名称</label>
+        <input type="text" name="tool_name" placeholder="如 calculate_order_amount（字母开头，字母/数字/_-）" value="${escapeHtml(data.name || '')}" autocomplete="off">
+        <label>工具描述（模型靠它判断何时调用，请写清用途）</label>
+        <input type="text" name="tool_desc" placeholder="如：计算指定产品的订单金额，问题涉及订单金额时必须调用" value="${escapeHtml(data.description || '')}" autocomplete="off">
+
+        <label>参数定义</label>
+        <div id="tool-param-rows">${paramRows}</div>
+        <button class="btn btn-sm btn-ghost" type="button" onclick="addToolParamRow()" style="margin-top:8px;">+ 添加参数</button>
+
+        <div id="tool-http-section" style="display:${type === 'http' ? 'block' : 'none'};">
+          <label>请求方法</label>
+          <select name="http_method">
+            ${methods.map(m => `<option value="${m}" ${(cfg.method || 'GET') === m ? 'selected' : ''}>${m}</option>`).join('')}
+          </select>
+          <label>请求 URL（支持 {{参数名}} 占位符）</label>
+          <input type="text" name="http_url" placeholder="https://api.example.com/query/{{keyword}}" value="${escapeHtml(cfg.url || '')}" autocomplete="off">
+          <label>请求头（JSON，可选）</label>
+          <textarea name="http_headers" rows="2" placeholder='{"Authorization": "Bearer xxx"}'>${escapeHtml(cfg.headers ? JSON.stringify(cfg.headers) : '')}</textarea>
+          <label>请求体模板（支持 {{参数名}} 占位符，可选）</label>
+          <textarea name="http_body" rows="3" placeholder='{"query": "{{keyword}}"}'>${escapeHtml(cfg.body_template || '')}</textarea>
+          <label>超时时间（秒）</label>
+          <input type="number" name="http_timeout" min="1" max="120" value="${cfg.timeout || 15}">
+        </div>
+
+        <div id="tool-local-section" style="display:${type === 'local' ? 'block' : 'none'};">
+          <label>数据源（可选：选择后模型只需传查询条件，数值由查库获得）</label>
+          <select name="local_datasource">${dsOptions}</select>
+          <label>SQL 模板（用 :参数名 绑定参数，可选）</label>
+          <textarea name="local_sql" rows="3" placeholder="SELECT unit_price, quantity, discount FROM orders WHERE product_name = :product_name LIMIT 1">${escapeHtml(cfg.sql_template || '')}</textarea>
+          <label>计算公式（变量为参数名或查库返回的字段名）</label>
+          <input type="text" name="local_formula" placeholder="unit_price * quantity * discount" value="${escapeHtml(cfg.formula || '')}" autocomplete="off">
+          <div class="form-hint">支持 + - * / // % ** 与 abs / round / min / max / sqrt / floor / ceil。</div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-ghost" data-action="cancel">取消</button>
+        <button class="btn btn-primary" id="tool-save-btn" onclick="saveTool()">保存</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function showToolForm() {
+  _closeToolModal();
+  document.body.insertAdjacentHTML('beforeend', _buildToolModalHTML('新增工具', {}));
+  _bindToolModalClose();
+  requestAnimationFrame(() => $('tool-modal').classList.add('show'));
+}
+
+function editTool(id) {
+  const t = (_allTools.custom || []).find(x => x.id === id);
+  if (!t) return;
+  _closeToolModal();
+  document.body.insertAdjacentHTML('beforeend', _buildToolModalHTML('编辑工具', t));
+  _bindToolModalClose();
+  requestAnimationFrame(() => $('tool-modal').classList.add('show'));
+}
+
+function _closeToolModal() {
+  const m = $('tool-modal');
+  if (m) m.remove();
+}
+
+function _bindToolModalClose() {
+  const overlay = $('tool-modal');
+  if (!overlay) return;
+  overlay.querySelector('[data-action="cancel"]').onclick = _closeToolModal;
+  overlay.onclick = (e) => { if (e.target === overlay) _closeToolModal(); };
+}
+
+function onToolTypeChange(type) {
+  $('tool-http-section').style.display = type === 'http' ? 'block' : 'none';
+  $('tool-local-section').style.display = type === 'local' ? 'block' : 'none';
+}
+
+function addToolParamRow() {
+  $('tool-param-rows').insertAdjacentHTML('beforeend', _paramRowHTML({}));
+}
+
+async function saveTool() {
+  const overlay = $('tool-modal');
+  if (!overlay) return;
+  const id = overlay.querySelector('[name="edit_id"]').value;
+  const type = overlay.querySelector('[name="tool_type"]').value;
+  const params = [...overlay.querySelectorAll('.tool-param-row')].map(row => ({
+    name: row.querySelector('[name="param_name"]').value.trim(),
+    type: row.querySelector('[name="param_type"]').value,
+    description: row.querySelector('[name="param_desc"]').value.trim(),
+    required: row.querySelector('[name="param_required"]').checked,
+  })).filter(p => p.name);
+  const config = {};
+  if (type === 'http') {
+    config.method = overlay.querySelector('[name="http_method"]').value;
+    config.url = overlay.querySelector('[name="http_url"]').value.trim();
+    config.headers = overlay.querySelector('[name="http_headers"]').value.trim();
+    config.body_template = overlay.querySelector('[name="http_body"]').value;
+    config.timeout = overlay.querySelector('[name="http_timeout"]').value;
+  } else {
+    config.datasource_id = overlay.querySelector('[name="local_datasource"]').value || null;
+    config.sql_template = overlay.querySelector('[name="local_sql"]').value.trim();
+    config.formula = overlay.querySelector('[name="local_formula"]').value.trim();
+  }
+  const payload = {
+    name: overlay.querySelector('[name="tool_name"]').value.trim(),
+    type,
+    description: overlay.querySelector('[name="tool_desc"]').value.trim(),
+    params,
+    config,
+  };
+  const btn = $('tool-save-btn');
+  btn.disabled = true; btn.textContent = '保存中...';
+  try {
+    if (id) {
+      await fetchJSON(`/api/tools/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+    } else {
+      await fetchJSON('/api/tools', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+    }
+    toast('已保存，对话时立即生效');
+    _closeToolModal();
+    loadToolsPage();
+  } catch (e) { toast('保存失败: ' + e.message, 'error'); }
+  btn.disabled = false; btn.textContent = '保存';
+}
+
+async function toggleBuiltinTool(name, enabled) {
+  try {
+    await fetchJSON(`/api/tools/builtin/${name}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled }),
+    });
+    toast(enabled ? '已启用' : '已禁用');
+    loadToolsPage();
+  } catch (e) { toast('操作失败: ' + e.message, 'error'); }
+}
+
+async function toggleCustomTool(id, enabled) {
+  try {
+    await fetchJSON(`/api/tools/${id}/enabled`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled }),
+    });
+    toast(enabled ? '已启用' : '已禁用');
+    loadToolsPage();
+  } catch (e) { toast('操作失败: ' + e.message, 'error'); }
+}
+
+function confirmDeleteTool(id, name) {
+  showModal({
+    title: '删除工具',
+    message: `确认删除工具「${name}」？此操作不可撤销。`,
+    confirmText: '删除',
+    danger: true,
+    onConfirm: async () => {
+      try {
+        await fetchJSON(`/api/tools/${id}`, { method: 'DELETE' });
+        toast('已删除');
+        loadToolsPage();
+        return true;
+      } catch (e) { toast('删除失败: ' + e.message, 'error'); return false; }
+    },
+  });
+}
+
+function showTestTool(id) {
+  const t = (_allTools.custom || []).find(x => x.id === id);
+  if (!t) return;
+  const props = (t.parameters && t.parameters.properties) || {};
+  const required = (t.parameters && t.parameters.required) || [];
+  const fields = Object.keys(props).map(name => ({
+    label: `${name}${required.includes(name) ? '（必填）' : ''} · ${props[name].type}${props[name].description ? ' — ' + props[name].description : ''}`,
+    name,
+    type: 'text',
+    placeholder: props[name].description || '',
+  }));
+  showModal({
+    title: `试调工具：${t.name}`,
+    fields,
+    confirmText: '执行',
+    onConfirm: async (vals) => {
+      const args = {};
+      for (const [k, v] of Object.entries(vals)) {
+        if (v === '') continue;
+        const ptype = props[k] ? props[k].type : 'string';
+        if (ptype === 'number' || ptype === 'integer') {
+          const num = Number(v);
+          if (isNaN(num)) { toast(`参数 ${k} 不是合法数字`, 'error'); return false; }
+          args[k] = num;
+        } else if (ptype === 'boolean') {
+          args[k] = v === 'true';
+        } else {
+          args[k] = v;
+        }
+      }
+      try {
+        const d = await fetchJSON(`/api/tools/${id}/test`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ arguments: args }),
+        }, 60000);
+        showModal({ title: '试调结果', message: d.result, confirmText: '关闭', onConfirm: async () => true });
+        return true;
+      } catch (e) { toast('试调失败: ' + e.message, 'error'); return false; }
+    },
+  });
+}
+
+// ── 数据源管理 ──
+function renderDatasources() {
+  const tbody = $('datasource-list');
+  if (!_datasources.length) {
+    tbody.innerHTML = '<tr><td colspan="6" class="empty">暂无数据源，点击「新增数据源」添加</td></tr>';
+    return;
+  }
+  tbody.innerHTML = _datasources.map(d => `
+    <tr>
+      <td>${d.id}</td>
+      <td>${escapeHtml(d.name)}</td>
+      <td>${escapeHtml(d.host)}:${d.port}</td>
+      <td>${escapeHtml(d.db_name)}</td>
+      <td>${escapeHtml(d.username)}</td>
+      <td style="white-space:nowrap;">
+        <button class="btn btn-sm btn-ghost" onclick="testSavedDatasource(${d.id})">测试</button>
+        <button class="btn btn-sm btn-ghost" onclick="editDatasource(${d.id})">编辑</button>
+        <button class="btn btn-sm btn-danger" onclick="confirmDeleteDatasource(${d.id}, '${escapeHtml(d.name)}')">删除</button>
+      </td>
+    </tr>`).join('');
+}
+
+function _buildDatasourceModalHTML(title, data) {
+  data = data || {};
+  return `
+  <div class="modal-overlay" id="ds-modal">
+    <div class="modal-box" style="max-width:480px;">
+      <div class="modal-head">${escapeHtml(title)}</div>
+      <div class="modal-body">
+        <input type="hidden" name="ds_id" value="${data.id || ''}">
+        <label>名称</label>
+        <input type="text" name="ds_name" placeholder="如：订单库" value="${escapeHtml(data.name || '')}" autocomplete="off">
+        <label>主机地址</label>
+        <input type="text" name="ds_host" placeholder="127.0.0.1" value="${escapeHtml(data.host || '')}" autocomplete="off">
+        <label>端口</label>
+        <input type="number" name="ds_port" value="${data.port || 3306}">
+        <label>数据库名</label>
+        <input type="text" name="ds_db" placeholder="orders_db" value="${escapeHtml(data.db_name || '')}" autocomplete="off">
+        <label>用户名</label>
+        <input type="text" name="ds_user" value="${escapeHtml(data.username || '')}" autocomplete="off">
+        <label>密码</label>
+        <input type="password" name="ds_pass" placeholder="${data.id ? '留空保持不变' : '数据库密码'}" value="" autocomplete="new-password">
+        <div class="form-hint">密码加密存储。出于安全考虑，建议使用只读数据库账号。</div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-ghost" id="ds-test-btn" onclick="testDatasourceForm()">测试连接</button>
+        <button class="btn btn-ghost" data-action="cancel">取消</button>
+        <button class="btn btn-primary" id="ds-save-btn" onclick="saveDatasource()">保存</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function showDatasourceForm() {
+  _closeDatasourceModal();
+  document.body.insertAdjacentHTML('beforeend', _buildDatasourceModalHTML('新增数据源', {}));
+  _bindDatasourceModalClose();
+  requestAnimationFrame(() => $('ds-modal').classList.add('show'));
+}
+
+function editDatasource(id) {
+  const d = _datasources.find(x => x.id === id);
+  if (!d) return;
+  _closeDatasourceModal();
+  document.body.insertAdjacentHTML('beforeend', _buildDatasourceModalHTML('编辑数据源', d));
+  _bindDatasourceModalClose();
+  requestAnimationFrame(() => $('ds-modal').classList.add('show'));
+}
+
+function _closeDatasourceModal() {
+  const m = $('ds-modal');
+  if (m) m.remove();
+}
+
+function _bindDatasourceModalClose() {
+  const overlay = $('ds-modal');
+  if (!overlay) return;
+  overlay.querySelector('[data-action="cancel"]').onclick = _closeDatasourceModal;
+  overlay.onclick = (e) => { if (e.target === overlay) _closeDatasourceModal(); };
+}
+
+function _collectDatasourceForm() {
+  const overlay = $('ds-modal');
+  return {
+    name: overlay.querySelector('[name="ds_name"]').value.trim(),
+    host: overlay.querySelector('[name="ds_host"]').value.trim(),
+    port: overlay.querySelector('[name="ds_port"]').value,
+    db_name: overlay.querySelector('[name="ds_db"]').value.trim(),
+    username: overlay.querySelector('[name="ds_user"]').value.trim(),
+    password: overlay.querySelector('[name="ds_pass"]').value,
+  };
+}
+
+async function testDatasourceForm() {
+  const btn = $('ds-test-btn');
+  btn.disabled = true; btn.textContent = '测试中...';
+  try {
+    const d = await fetchJSON('/api/datasources/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(_collectDatasourceForm()),
+    }, 30000);
+    toast(d.message, d.ok ? 'success' : 'error');
+  } catch (e) { toast('测试失败: ' + e.message, 'error'); }
+  btn.disabled = false; btn.textContent = '测试连接';
+}
+
+async function saveDatasource() {
+  const overlay = $('ds-modal');
+  if (!overlay) return;
+  const id = overlay.querySelector('[name="ds_id"]').value;
+  const payload = _collectDatasourceForm();
+  const btn = $('ds-save-btn');
+  btn.disabled = true; btn.textContent = '保存中...';
+  try {
+    if (id) {
+      await fetchJSON(`/api/datasources/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+    } else {
+      await fetchJSON('/api/datasources', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+    }
+    toast('已保存');
+    _closeDatasourceModal();
+    loadToolsPage();
+  } catch (e) { toast('保存失败: ' + e.message, 'error'); }
+  btn.disabled = false; btn.textContent = '保存';
+}
+
+async function testSavedDatasource(id) {
+  try {
+    const d = await fetchJSON(`/api/datasources/${id}/test`, { method: 'POST' }, 30000);
+    toast(d.message, d.ok ? 'success' : 'error');
+  } catch (e) { toast('测试失败: ' + e.message, 'error'); }
+}
+
+function confirmDeleteDatasource(id, name) {
+  showModal({
+    title: '删除数据源',
+    message: `确认删除数据源「${name}」？若正被工具引用将无法删除。`,
+    confirmText: '删除',
+    danger: true,
+    onConfirm: async () => {
+      try {
+        await fetchJSON(`/api/datasources/${id}`, { method: 'DELETE' });
+        toast('已删除');
+        loadToolsPage();
+        return true;
+      } catch (e) { toast('删除失败: ' + e.message, 'error'); return false; }
+    },
+  });
+}
+
+// ── 个人资料（顶栏用户名入口，含 API Key 管理）──
+async function showProfile() {
+  let me;
+  try { me = await fetchJSON('/api/auth/me'); }
+  catch (e) { toast('加载个人资料失败: ' + e.message, 'error'); return; }
+  const u = me.user || {};
+  const uname = u.username || '?';
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal-box modal-lg">
+      <div class="modal-head">个人资料</div>
+      <div class="modal-body">
+        <div style="display:flex;gap:14px;align-items:center;margin-bottom:16px;">
+          <div class="topbar-avatar" style="width:44px;height:44px;font-size:20px;">${escapeHtml(uname[0].toUpperCase())}</div>
+          <div>
+            <div style="font-size:16px;font-weight:600;">${escapeHtml(uname)}${u.id === 1 ? ' <span class="tag tag-green">管理员</span>' : ''}</div>
+            <div class="form-hint">用户 ID：${u.id}</div>
+          </div>
+        </div>
+        <div class="tab-bar" style="margin-bottom:16px;">
+          <button class="tab-btn active" data-profile-tab="apikey" onclick="switchProfileTab('apikey')">API Key</button>
+          <button class="tab-btn" data-profile-tab="role" onclick="switchProfileTab('role')">角色定义</button>
+        </div>
+        <div class="profile-tab-panel active" data-profile-panel="apikey">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <div class="card-title" style="margin:0;">我的 API Key</div>
+            <button class="btn btn-primary btn-sm" onclick="showCreateApiKey()">创建 API Key</button>
+          </div>
+          <div class="form-hint" style="margin-bottom:10px;">API Key 用于外部系统调用开放接口（上传的文档将进入本账号的知识库）。完整 Key 仅在创建时显示一次，请立即保存。调用规范见 <a href="/api-docs" target="_blank" rel="noopener">接口文档</a>。</div>
+          <table class="table">
+            <thead><tr><th style="width:46px;">ID</th><th>备注</th><th>Key 前缀</th><th>创建时间</th><th>最后使用</th><th style="width:76px;">状态</th><th style="width:150px;">操作</th></tr></thead>
+            <tbody id="profile-apikey-list"><tr><td colspan="7" class="empty">加载中…</td></tr></tbody>
+          </table>
+        </div>
+        <div class="profile-tab-panel" data-profile-panel="role">
+          <div class="form-hint" style="margin-bottom:10px;">定义本账号专属 Agent 的基本角色与行为，例如「回答必须使用中文」「你是一个财务分析助手」。保存后立即生效，无需重启。</div>
+          <textarea id="role-prompt-input" rows="8" placeholder="你是一个智能助手，回答必须使用简体中文，语气专业友好……" style="width:100%;padding:10px 12px;border:1px solid #d9d9d9;border-radius:8px;font-size:14px;outline:none;resize:vertical;font-family:inherit;"></textarea>
+          <div style="display:flex;justify-content:flex-end;margin-top:12px;">
+            <button class="btn btn-primary" id="role-save-btn" onclick="saveRolePrompt()">保存角色定义</button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-ghost" data-action="close">关闭</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  requestAnimationFrame(() => overlay.classList.add('show'));
+  const close = () => { overlay.classList.remove('show'); setTimeout(() => overlay.remove(), 200); };
+  overlay.querySelector('[data-action="close"]').onclick = close;
+  overlay.onclick = (e) => { if (e.target === overlay) close(); };
+  loadApiKeys();
+  loadRolePrompt();
+}
+
+function switchProfileTab(tab) {
+  document.querySelectorAll('.tab-btn[data-profile-tab]').forEach(b => {
+    b.classList.toggle('active', b.dataset.profileTab === tab);
+  });
+  document.querySelectorAll('.profile-tab-panel').forEach(p => {
+    p.classList.toggle('active', p.dataset.profilePanel === tab);
+  });
+}
+
+async function loadRolePrompt() {
+  const ta = $('role-prompt-input');
+  if (!ta) return;
+  try {
+    const d = await fetchJSON('/api/profile/role');
+    ta.value = d.role_prompt || '';
+  } catch (e) { toast('加载角色定义失败: ' + e.message, 'error'); }
+}
+
+async function saveRolePrompt() {
+  const ta = $('role-prompt-input');
+  const btn = $('role-save-btn');
+  btn.disabled = true; btn.textContent = '保存中...';
+  try {
+    await fetchJSON('/api/profile/role', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role_prompt: ta.value }),
+    });
+    toast('角色定义已保存，立即生效');
+  } catch (e) { toast('保存失败: ' + e.message, 'error'); }
+  btn.disabled = false; btn.textContent = '保存角色定义';
+}
+
+// ── API Key 管理 ──
+async function loadApiKeys() {
+  const tbody = $('profile-apikey-list');
+  if (!tbody) return;
+  try {
+    const d = await fetchJSON('/api/api-keys');
+    if (!d.keys.length) {
+      tbody.innerHTML = '<tr><td colspan="7" class="empty">暂无 API Key，点击「创建 API Key」生成</td></tr>';
+      return;
+    }
+    tbody.innerHTML = d.keys.map(k => `
+      <tr>
+        <td>${k.id}</td>
+        <td>${escapeHtml(k.name)}</td>
+        <td><code>${escapeHtml(k.key_prefix)}</code><button class="btn-copy" onclick="copyToClipboard(this.previousElementSibling.textContent)" title="复制"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button></td>
+        <td>${k.created_at || '-'}</td>
+        <td>${k.last_used_at || '从未使用'}</td>
+        <td>${k.enabled ? '<span style="color:#4ade80;">● 启用</span>' : '<span style="color:var(--fg-dim);">○ 禁用</span>'}</td>
+        <td style="white-space:nowrap;">
+          <button class="btn btn-sm btn-ghost" onclick="toggleApiKey(${k.id}, ${!k.enabled})">${k.enabled ? '禁用' : '启用'}</button>
+          <button class="btn btn-sm btn-danger" onclick="confirmDeleteApiKey(${k.id})">删除</button>
+        </td>
+      </tr>`).join('');
+  } catch (e) { toast('加载失败: ' + e.message, 'error'); }
+}
+
+function showCreateApiKey() {
+  showModal({
+    title: '创建 API Key',
+    fields: [{ label: '备注（用途说明）', name: 'name', type: 'text', placeholder: '如：ERP 系统数据同步' }],
+    confirmText: '创建',
+    onConfirm: async (vals) => {
+      try {
+        const d = await fetchJSON('/api/api-keys', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: vals.name }),
+        });
+        loadApiKeys();
+        _showNewKeyModal(d.key.key);
+        return true;
+      } catch (e) { toast('创建失败: ' + e.message, 'error'); return false; }
+    },
+  });
+}
+
+function _showNewKeyModal(key) {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal-box" style="max-width:560px;">
+      <div class="modal-head">API Key 创建成功</div>
+      <div class="modal-body">
+        <div class="msg" style="margin-bottom:10px;">完整 Key 仅本次显示，之后无法再次查看，请立即复制保存：</div>
+        <input type="text" readonly value="${escapeHtml(key)}" onclick="this.select()" style="font-family:monospace;font-size:12px;">
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-ghost" data-action="copy">复制</button>
+        <button class="btn btn-primary" data-action="close">已保存</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  requestAnimationFrame(() => overlay.classList.add('show'));
+  const close = () => { overlay.classList.remove('show'); setTimeout(() => overlay.remove(), 200); };
+  overlay.querySelector('[data-action="close"]').onclick = close;
+  overlay.onclick = (e) => { if (e.target === overlay) close(); };
+  overlay.querySelector('[data-action="copy"]').onclick = () => {
+    const input = overlay.querySelector('input');
+    input.select();
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(key).then(() => toast('已复制')).catch(() => { document.execCommand('copy'); toast('已复制'); });
+    } else {
+      document.execCommand('copy');
+      toast('已复制');
+    }
+  };
+}
+
+async function toggleApiKey(id, enabled) {
+  try {
+    await fetchJSON(`/api/api-keys/${id}/enabled`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled }),
+    });
+    toast(enabled ? '已启用' : '已禁用');
+    loadApiKeys();
+  } catch (e) { toast('操作失败: ' + e.message, 'error'); }
+}
+
+function confirmDeleteApiKey(id) {
+  showModal({
+    title: '删除 API Key',
+    message: '确认删除该 API Key？删除后使用它的外部系统将无法调用开放接口。',
+    confirmText: '删除',
+    danger: true,
+    onConfirm: async () => {
+      try {
+        await fetchJSON(`/api/api-keys/${id}`, { method: 'DELETE' });
+        toast('已删除');
+        loadApiKeys();
+        return true;
+      } catch (e) { toast('删除失败: ' + e.message, 'error'); return false; }
+    },
+  });
+}
+
 // ── 自定义模态框 ──
 function showModal({ title, fields, message, onConfirm, confirmText = '确定', danger = false }) {
   const overlay = document.createElement('div');
@@ -1299,6 +2270,9 @@ function showModal({ title, fields, message, onConfirm, confirmText = '确定', 
 
 // 登录用户按权限渲染侧边栏菜单（权限由后端 /api/auth/me 返回，admin 恒为全部）
 fetchJSON('/api/auth/me').then(d => {
+  const uname = (d.user && d.user.username) || '';
+  $('topbar-username').textContent = uname;
+  $('topbar-avatar').textContent = (uname[0] || '?').toUpperCase();
   const perms = d.user.permissions || [];
   document.querySelectorAll('.nav-item').forEach(item => {
     if (item.dataset.page) {

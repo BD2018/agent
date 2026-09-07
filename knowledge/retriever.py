@@ -41,6 +41,7 @@ class KnowledgeBase:
 
     def __init__(self, user_id: int):
         _ensure_shared()
+        self._user_id = user_id
         self._col = _client.get_or_create_collection(
             name=f"user_{user_id}_docs",
             embedding_function=_ef,
@@ -63,6 +64,12 @@ class KnowledgeBase:
         return self._col.count()
 
     def search(self, query, top_k=3):
+        # 优先匹配固定问答（语义相似度达标则直接返回预设回答）
+        from knowledge.qa_store import search_qa
+        qa_answer = search_qa(self._user_id, query, QUERY_INSTRUCTION)
+        if qa_answer:
+            return qa_answer
+
         if self._col.count() == 0:
             return "知识库当前为空，请先上传文档入库。"
         res = self._col.query(

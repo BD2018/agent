@@ -11,11 +11,12 @@ import asyncio
 import json
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 import config
+from agent import datasource, tool_store
 from agent.core import Agent
 from agent.llm_settings import (
     create_model_config,
@@ -28,7 +29,14 @@ from agent.llm_settings import (
     test_llm_connection,
     update_model_config,
 )
-from agent.tools import TOOLS
+from agent.tools import get_all_tools
+from auth.api_keys import (
+    create_api_key,
+    delete_api_key,
+    list_api_keys,
+    set_api_key_enabled,
+    verify_api_key,
+)
 from auth.dependencies import get_current_user, require_permission
 from auth.jwt_utils import create_token
 from auth.models import (
@@ -36,15 +44,18 @@ from auth.models import (
     authenticate,
     create_user,
     delete_user,
+    get_role_prompt,
     get_user_by_id,
     init_db,
     list_users,
+    set_role_prompt,
     update_password,
     update_permissions,
 )
 from knowledge.extractors import SUPPORTED_EXTS
 from knowledge.ingest import ingest_file
 from knowledge.retriever import get_kb
+from knowledge import qa_store
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -305,8 +316,11 @@ async def upload(
     if ext not in SUPPORTED_EXTS:
         raise HTTPException(400, f"不支持的格式: {ext}（支持：{'/'.join(SUPPORTED_EXTS)}）")
 
-    dest = user_docs_dir(uid) / filename
     content = await file.read()
+    if len(content) > config.MAX_UPLOAD_MB * 1024 * 1024:
+        raise HTTPException(413, f"文件超过 {config.MAX_UPLOAD_MB}MB 上限")
+
+    dest = user_docs_dir(uid) / filename
     dest.write_bytes(content)
 
     try:
@@ -426,7 +440,7 @@ async def list_chunks_by_file(filename: str, user: dict = Depends(get_current_us
 @app.get("/api/system")
 async def system_info(user: dict = Depends(get_current_user)):
     tools_info = []
-    for t in TOOLS:
+    for t in get_all_tools():
         f = t["function"]
         tools_info.append({
             "name": f["name"],
@@ -448,3 +462,397 @@ async def system_info(user: dict = Depends(get_current_user)):
         "supported_exts": list(SUPPORTED_EXTS),
         "tools": tools_info,
     }
+
+
+# ---------- 工具管理（需 tools 权限）----------
+@app.get("/api/tools")
+async def tools_list(user: dict = Depends(require_permission("tools"))):
+    """内置工具 + 自定义工具合并列表。"""
+    from agent.tools import TOOLS
+
+    flags = tool_store.get_builtin_flags()
+    builtin = []
+    for t in TOOLS:
+        f = t["function"]
+        builtin.append({
+            "builtin": True,
+            "name": f["name"],
+            "description": f["description"],
+            "parameters": f["parameters"],
+            "enabled": flags.get(f["name"], True),
+        })
+    custom = []
+    for ct in tool_store.list_custom_tools():
+        custom.append({
+            "builtin": False,
+            "id": ct["id"],
+            "name": ct["name"],
+            "type": ct["type"],
+            "description": ct["description"],
+            "params": tool_store.schema_to_params(ct["parameters"]),
+            "parameters": ct["parameters"],
+            "config": ct["config"],
+            "enabled": ct["enabled"],
+            "created_at": ct["created_at"],
+            "updated_at": ct["updated_at"],
+        })
+    return {"builtin": builtin, "custom": custom}
+
+
+@app.put("/api/tools/builtin/{name}")
+async def tools_builtin_toggle(
+    name: str, payload: dict, user: dict = Depends(require_permission("tools"))
+):
+    """启用/禁用内置工具，立即生效。"""
+    enabled = bool(payload.get("enabled"))
+    if not tool_store.set_builtin_enabled(name, enabled):
+        raise HTTPException(404, "内置工具不存在")
+    return {"ok": True, "name": name, "enabled": enabled}
+
+
+@app.post("/api/tools")
+async def tools_create(payload: dict, user: dict = Depends(require_permission("tools"))):
+    try:
+        tool = tool_store.create_tool(
+            payload.get("name"),
+            payload.get("type"),
+            payload.get("description"),
+            payload.get("params") or [],
+            payload.get("config") or {},
+        )
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"tool": tool}
+
+
+@app.get("/api/tools/{tool_id}")
+async def tools_get(tool_id: int, user: dict = Depends(require_permission("tools"))):
+    tool = tool_store.get_custom_tool(tool_id)
+    if not tool:
+        raise HTTPException(404, "工具不存在")
+    return {"tool": tool}
+
+
+@app.put("/api/tools/{tool_id}")
+async def tools_update(
+    tool_id: int, payload: dict, user: dict = Depends(require_permission("tools"))
+):
+    if not tool_store.get_custom_tool(tool_id):
+        raise HTTPException(404, "工具不存在")
+    try:
+        tool = tool_store.update_tool(
+            tool_id,
+            payload.get("name"),
+            payload.get("type"),
+            payload.get("description"),
+            payload.get("params") or [],
+            payload.get("config") or {},
+        )
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"tool": tool}
+
+
+@app.delete("/api/tools/{tool_id}")
+async def tools_delete(tool_id: int, user: dict = Depends(require_permission("tools"))):
+    if not tool_store.delete_tool(tool_id):
+        raise HTTPException(404, "工具不存在")
+    return {"ok": True}
+
+
+@app.put("/api/tools/{tool_id}/enabled")
+async def tools_toggle(tool_id: int, payload: dict, user: dict = Depends(require_permission("tools"))):
+    tool = tool_store.set_tool_enabled(tool_id, bool(payload.get("enabled")))
+    if not tool:
+        raise HTTPException(404, "工具不存在")
+    return {"ok": True, "tool": tool}
+
+
+@app.post("/api/tools/{tool_id}/test")
+async def tools_test(
+    tool_id: int, payload: dict, user: dict = Depends(require_permission("tools"))
+):
+    """试调工具：用给定参数走一遍真实执行链路。"""
+    from agent.tools import execute_tool
+
+    tool = tool_store.get_custom_tool(tool_id)
+    if not tool:
+        raise HTTPException(404, "工具不存在")
+    arguments = payload.get("arguments") or {}
+    if not isinstance(arguments, dict):
+        raise HTTPException(400, "arguments 必须是对象")
+    result = await asyncio.to_thread(
+        execute_tool, tool["name"], json.dumps(arguments, ensure_ascii=False), user["id"]
+    )
+    return {"result": result}
+
+
+# ---------- 数据源管理（需 tools 权限）----------
+@app.get("/api/datasources")
+async def datasources_list(user: dict = Depends(require_permission("tools"))):
+    return {"datasources": datasource.list_datasources()}
+
+
+@app.post("/api/datasources")
+async def datasources_create(payload: dict, user: dict = Depends(require_permission("tools"))):
+    name = (payload.get("name") or "").strip()
+    host = (payload.get("host") or "").strip()
+    db_name = (payload.get("db_name") or "").strip()
+    username = (payload.get("username") or "").strip()
+    password = payload.get("password") or ""
+    try:
+        port = int(payload.get("port") or 3306)
+    except (TypeError, ValueError):
+        raise HTTPException(400, "端口必须是整数")
+    if not name or not host or not db_name or not username:
+        raise HTTPException(400, "名称、主机、数据库名、用户名不能为空")
+    try:
+        ds = datasource.create_datasource(name, host, port, db_name, username, password)
+    except Exception as e:
+        raise HTTPException(400, f"保存失败（名称可能重复）: {e}")
+    return {"datasource": ds}
+
+
+@app.put("/api/datasources/{ds_id}")
+async def datasources_update(
+    ds_id: int, payload: dict, user: dict = Depends(require_permission("tools"))
+):
+    if not datasource.get_datasource(ds_id):
+        raise HTTPException(404, "数据源不存在")
+    name = (payload.get("name") or "").strip()
+    host = (payload.get("host") or "").strip()
+    db_name = (payload.get("db_name") or "").strip()
+    username = (payload.get("username") or "").strip()
+    password = payload.get("password") or ""  # 空串 = 保持原密码
+    try:
+        port = int(payload.get("port") or 3306)
+    except (TypeError, ValueError):
+        raise HTTPException(400, "端口必须是整数")
+    if not name or not host or not db_name or not username:
+        raise HTTPException(400, "名称、主机、数据库名、用户名不能为空")
+    try:
+        ds = datasource.update_datasource(ds_id, name, host, port, db_name, username, password)
+    except Exception as e:
+        raise HTTPException(400, f"保存失败（名称可能重复）: {e}")
+    return {"datasource": ds}
+
+
+@app.delete("/api/datasources/{ds_id}")
+async def datasources_delete(ds_id: int, user: dict = Depends(require_permission("tools"))):
+    if tool_store.is_datasource_in_use(ds_id):
+        raise HTTPException(400, "该数据源正被工具引用，请先修改或删除相关工具")
+    if not datasource.delete_datasource(ds_id):
+        raise HTTPException(404, "数据源不存在")
+    return {"ok": True}
+
+
+@app.post("/api/datasources/test")
+async def datasources_test(payload: dict, user: dict = Depends(require_permission("tools"))):
+    """用表单内容测试连接（保存前可用）。"""
+    ds = {
+        "host": (payload.get("host") or "").strip(),
+        "port": int(payload.get("port") or 3306),
+        "db_name": (payload.get("db_name") or "").strip(),
+        "username": (payload.get("username") or "").strip(),
+        "password": payload.get("password") or "",
+    }
+    ok, message = await asyncio.to_thread(datasource.test_connection, ds)
+    return {"ok": ok, "message": message}
+
+
+@app.post("/api/datasources/{ds_id}/test")
+async def datasources_test_saved(ds_id: int, user: dict = Depends(require_permission("tools"))):
+    """用已保存的数据源配置测试连接。"""
+    ds = datasource.get_datasource(ds_id)
+    if not ds:
+        raise HTTPException(404, "数据源不存在")
+    ok, message = await asyncio.to_thread(datasource.test_connection, ds)
+    return {"ok": ok, "message": message}
+
+
+@app.post("/api/datasources/{ds_id}/query")
+async def datasources_query(
+    ds_id: int, payload: dict, user: dict = Depends(require_permission("tools"))
+):
+    """试跑 SQL 模板：参数化执行，返回结果行（用于工具表单调试）。"""
+    ds = datasource.get_datasource(ds_id)
+    if not ds:
+        raise HTTPException(404, "数据源不存在")
+    sql = (payload.get("sql") or "").strip()
+    params = payload.get("params") or {}
+    if not sql:
+        raise HTTPException(400, "SQL 模板不能为空")
+    if not isinstance(params, dict):
+        raise HTTPException(400, "params 必须是对象")
+    try:
+        rows = await asyncio.to_thread(datasource.run_query, ds, sql, params)
+    except Exception as e:
+        raise HTTPException(400, f"查询失败: {e}")
+    return {"rows": rows, "count": len(rows)}
+
+
+# ---------- API Key 管理（登录用户管理自己的 Key）----------
+@app.get("/api/api-keys")
+async def api_keys_list(user: dict = Depends(get_current_user)):
+    return {"keys": list_api_keys(user["id"])}
+
+
+@app.post("/api/api-keys")
+async def api_keys_create(payload: dict, user: dict = Depends(get_current_user)):
+    name = (payload.get("name") or "").strip() or "未命名"
+    key = create_api_key(user["id"], name)
+    return {"key": key}
+
+
+@app.put("/api/api-keys/{key_id}/enabled")
+async def api_keys_toggle(
+    key_id: int, payload: dict, user: dict = Depends(get_current_user)
+):
+    if not set_api_key_enabled(key_id, user["id"], bool(payload.get("enabled"))):
+        raise HTTPException(404, "API Key 不存在")
+    return {"ok": True}
+
+
+@app.delete("/api/api-keys/{key_id}")
+async def api_keys_delete(key_id: int, user: dict = Depends(get_current_user)):
+    if not delete_api_key(key_id, user["id"]):
+        raise HTTPException(404, "API Key 不存在")
+    return {"ok": True}
+
+
+# ---------- 开放接口（API Key 认证，供外部系统调用）----------
+def get_open_api_user(request: Request) -> dict:
+    """从 Authorization: Bearer sk-xxx 或 X-API-Key 头解析并校验 API Key。"""
+    key = (request.headers.get("X-API-Key") or "").strip()
+    if not key:
+        auth = request.headers.get("Authorization") or ""
+        if auth.startswith("Bearer "):
+            key = auth[7:].strip()
+    if not key:
+        raise HTTPException(401, "未提供 API Key（X-API-Key 或 Authorization: Bearer）")
+    info = verify_api_key(key)
+    if not info:
+        raise HTTPException(401, "API Key 无效或已禁用")
+    user = get_user_by_id(info["user_id"])
+    if not user:
+        raise HTTPException(401, "API Key 所属用户不存在")
+    return user
+
+
+@app.post("/open/v1/upload")
+async def open_upload(
+    request: Request,
+    file: UploadFile = File(...),
+):
+    """开放上传：文件切片后写入 Key 所属用户的向量知识库。"""
+    user = get_open_api_user(request)
+    uid = user["id"]
+    filename = file.filename or "unknown"
+    ext = Path(filename).suffix.lower()
+    if ext not in SUPPORTED_EXTS:
+        raise HTTPException(400, f"不支持的格式: {ext}（支持：{'/'.join(SUPPORTED_EXTS)}）")
+
+    content = await file.read()
+    if len(content) > config.MAX_UPLOAD_MB * 1024 * 1024:
+        raise HTTPException(413, f"文件超过 {config.MAX_UPLOAD_MB}MB 上限")
+
+    dest = user_docs_dir(uid) / filename
+    dest.write_bytes(content)
+
+    try:
+        chunks = await asyncio.to_thread(ingest_file, dest, uid)
+    except Exception as e:
+        raise HTTPException(500, f"入库失败: {e}")
+
+    return {"filename": filename, "chunks": chunks, "total": get_kb(uid).count()}
+
+
+@app.get("/open/v1/docs")
+async def open_list_docs(request: Request):
+    """列出 Key 所属用户已入库的文档。"""
+    user = get_open_api_user(request)
+    kb = get_kb(user["id"])
+    return {"docs": kb.list_sources(), "total": kb.count()}
+
+
+@app.delete("/open/v1/docs/{filename}")
+async def open_remove_doc(filename: str, request: Request):
+    """删除 Key 所属用户的文档及其向量片段。"""
+    user = get_open_api_user(request)
+    uid = user["id"]
+    path = user_docs_dir(uid) / filename
+    kb = get_kb(uid)
+    kb.delete_by_source(filename)
+    if path.exists():
+        path.unlink()
+    return {"deleted": filename, "total": kb.count()}
+
+
+# ---------- 个人角色定义 ----------
+@app.get("/api/profile/role")
+async def profile_role_get(user: dict = Depends(get_current_user)):
+    return {"role_prompt": get_role_prompt(user["id"])}
+
+
+@app.put("/api/profile/role")
+async def profile_role_set(payload: dict, user: dict = Depends(get_current_user)):
+    try:
+        set_role_prompt(user["id"], payload.get("role_prompt") or "")
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"ok": True}
+
+
+# ---------- 固定问答管理（需 knowledge 权限）----------
+@app.get("/api/qa-pairs")
+async def qa_pairs_list(user: dict = Depends(require_permission("knowledge"))):
+    return {"qa_pairs": qa_store.list_qa_pairs(user["id"])}
+
+
+@app.post("/api/qa-pairs")
+async def qa_pairs_create(payload: dict, user: dict = Depends(require_permission("knowledge"))):
+    try:
+        qa = qa_store.create_qa_pair(
+            user["id"],
+            payload.get("question"),
+            payload.get("answer"),
+            float(payload.get("similarity_threshold") or 0.75),
+        )
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"qa": qa}
+
+
+@app.put("/api/qa-pairs/{qa_id}")
+async def qa_pairs_update(qa_id: int, payload: dict, user: dict = Depends(require_permission("knowledge"))):
+    try:
+        qa = qa_store.update_qa_pair(
+            user["id"], qa_id,
+            payload.get("question"),
+            payload.get("answer"),
+            float(payload.get("similarity_threshold") or 0.75),
+        )
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"qa": qa}
+
+
+@app.delete("/api/qa-pairs/{qa_id}")
+async def qa_pairs_delete(qa_id: int, user: dict = Depends(require_permission("knowledge"))):
+    if not qa_store.delete_qa_pair(user["id"], qa_id):
+        raise HTTPException(404, "问答对不存在")
+    return {"ok": True}
+
+
+@app.put("/api/qa-pairs/{qa_id}/enabled")
+async def qa_pairs_toggle(qa_id: int, payload: dict, user: dict = Depends(require_permission("knowledge"))):
+    qa = qa_store.set_qa_enabled(user["id"], qa_id, bool(payload.get("enabled")))
+    if not qa:
+        raise HTTPException(404, "问答对不存在")
+    return {"ok": True, "qa": qa}
+
+
+# ---------- 接口文档页 ----------
+@app.get("/api-docs")
+async def api_docs_page():
+    return FileResponse(str(STATIC_DIR / "api_docs.html"))

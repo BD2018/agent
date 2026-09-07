@@ -32,6 +32,10 @@ HISTORY_WINDOW = 20    # 发送给模型的最大历史消息条数（滑动窗�
 CHUNK_SIZE = 400       # 文档切分片段的目标长度（字符）
 CHUNK_OVERLAP = 50     # 相邻片段的重叠长度，避免语义被切断
 
+# ---------- 上传与查询限制 ----------
+MAX_UPLOAD_MB = int(os.getenv("MAX_UPLOAD_MB", "50"))     # 单文件上传大小上限
+MAX_QUERY_ROWS = int(os.getenv("MAX_QUERY_ROWS", "100"))  # 数据源查询单次返回行数上限
+
 # ---------- Web 服务 ----------
 WEB_HOST = os.getenv("WEB_HOST", "0.0.0.0")
 WEB_PORT = int(os.getenv("WEB_PORT", "1129"))
