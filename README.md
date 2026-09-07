@@ -44,7 +44,9 @@
 
 知识库链路：
   上传文档 ─▶ 提取纯文本 ─▶ 切分(400字/片, 重叠50) ─▶ bge 向量化 ─▶ Chroma
-  提问 ─▶ Agent 决策调用 search_knowledge_base ─▶ 余弦相似度 top3 ─▶ 拼入上下文
+  提问 ─▶ Agent 决策调用 search_knowledge_base ─▶ 自动路由：
+        ├─ 小库（≤1000片且≤8万字）→ CAG：全文直接进上下文，不检索
+        └─ 大库 → 混合检索：BM25关键词 + 向量双路召回 ─▶ RRF融合 ─▶ top3 拼入上下文
 ```
 
 **实时性原理**：FastAPI 单进程内共享同一个 Chroma 客户端与 Agent 缓存，上传写入后同一进程的检索立即可见，无需重启。
@@ -65,21 +67,28 @@ my_agent/
 │   ├── core.py            # Agent 核心：思考-行动-观察循环 + chat_stream 流式
 │   ├── memory.py          # SQLite 对话记忆（按 user_id 隔离，自动迁移旧表）
 │   ├── tools.py           # 工具定义（schema）与执行分发（带 user_id）
+│   ├── tool_store.py      # 自定义工具存储 CRUD（http 型 / 本地函数型）
+│   ├── datasource.py      # MySQL 数据源管理（密码加密 + 参数化查询）
+│   ├── formula_eval.py    # AST 白名单公式求值器（防代码注入）
 │   └── llm_settings.py    # 多模型配置存储（model_configs 表，Key 加密，启用切换）
 ├── auth/
 │   ├── jwt_utils.py       # JWT 签发/验证
 │   ├── models.py          # 用户存储 + 密码哈希 + admin 预置 + 页面权限定义
+│   ├── api_keys.py        # 开放接口 API Key（SHA-256 哈希存储，仅创建时显示一次）
 │   └── dependencies.py    # FastAPI 依赖：get_current_user / require_permission
 ├── knowledge/
 │   ├── extractors.py      # 多格式文本提取（PDF/Word/Excel/MD/TXT）
 │   ├── ingest.py          # 单文件入库 ingest_file(path, user_id) + 删除
-│   └── retriever.py       # get_kb(user_id) → per-user Chroma collection + 检索
+│   ├── retriever.py       # get_kb(user_id) → per-user Chroma collection + CAG/混合检索路由
+│   ├── bm25_store.py      # BM25 关键词索引（jieba 分词，内存缓存，写后自动失效）
+│   └── qa_store.py        # 固定问答对（语义相似度达标直接返回预设回答）
 ├── web/
 │   ├── app.py             # FastAPI 应用与全部 API 路由
 │   └── static/
 │       ├── login.html     # 登录/注册页
 │       ├── chat.html      # 对话页（流式打字机、工具过程展示）
-│       └── console.html   # 管理系统（多模块 SPA）
+│       ├── console.html   # 管理系统（多模块 SPA）
+│       └── api_docs.html  # 开放接口文档页（/api-docs）
 └── data/                  # 全部运行时数据（自动生成）
     ├── docs/{user_id}/    # 各用户上传的原始文档
     ├── chroma/            # 向量数据库（per-user collection）
@@ -256,7 +265,18 @@ python main.py
 - **向量化**：`BAAI/bge-small-zh-v1.5`（SentenceTransformer），余弦相似度；
 - **存储**：Chroma `PersistentClient` 落盘 `data/chroma/`；
 - **增量更新**：`ingest_file()` 先 `delete_by_source` 删同名旧片段再写入，重复上传=替换，新上传=追加；
-- **检索即工具**：`search_knowledge_base` 作为工具由模型自主决定调用，top_k=3，带来源标注。
+- **检索即工具**：`search_knowledge_base` 作为工具由模型自主决定调用，带来源标注。
+
+**检索策略（search 入口自动路由，返回结果带模式标注）**：
+
+| 模式 | 触发条件 | 行为 |
+|------|---------|------|
+| 固定问答 | 用户预设的问答对语义相似度达标 | 直接返回预设回答，不检索 |
+| CAG | 片段数 ≤ `CAG_MAX_CHUNKS` 且总字数 ≤ `CAG_TOKEN_THRESHOLD` | 跳过检索，知识库全文进上下文 |
+| 混合检索（默认） | 大库且 `HYBRID_SEARCH_ENABLED=true` | BM25 关键词（jieba 分词）+ 向量双路召回各 top-20，RRF 融合排名取 top-3 |
+| 纯向量 | `HYBRID_SEARCH_ENABLED=false` | 余弦相似度 top-3（原行为兜底） |
+
+BM25 索引不重复存储内容，直接从 Chroma 读取构建并缓存在内存；知识库写操作（增/删）后自动失效重建，无需重启。混合检索弥补纯向量对专有名词、编号、精确关键词召回不足的问题。
 
 ### 3. 记忆（agent/memory.py）
 
@@ -277,6 +297,14 @@ SQLite 存储 user/assistant 最终问答对（工具中间过程不落库），
 | `LLM_BASE_URL` | `https://api.deepseek.com` | 初始 Base URL，Web 保存后覆盖 |
 | `LLM_MODEL` | `deepseek-chat` | 初始模型标识，Web 保存后覆盖 |
 | `EMBEDDING_MODEL` | `BAAI/bge-small-zh-v1.5` | 向量模型 |
+| `CAG_TOKEN_THRESHOLD` | `80000` | CAG 模式总字数上限（小库全文进上下文） |
+| `CAG_MAX_CHUNKS` | `1000` | CAG 模式片段数上限 |
+| `HYBRID_SEARCH_ENABLED` | `true` | 混合检索开关，`false` 退回纯向量 |
+| `VECTOR_TOP_K` / `BM25_TOP_K` | `20` / `20` | 双路召回数量 |
+| `RRF_K` | `60` | RRF 融合常数 |
+| `FINAL_TOP_K` | `3` | 最终返回给模型的片段数 |
+| `MAX_UPLOAD_MB` | `50` | 单文件上传大小上限（MB） |
+| `MAX_QUERY_ROWS` | `100` | 数据源查询单次返回行数上限 |
 | `JWT_SECRET` | 自动生成 | 首次启动随机生成并写回 |
 | `JWT_EXPIRE_HOURS` | `168` | Token 有效期（7 天） |
 | `ENCRYPTION_KEY` | 自动生成 | Fernet 密钥，用于加密 API Key |
@@ -288,9 +316,9 @@ SQLite 存储 user/assistant 最终问答对（工具中间过程不落库），
 ## 十、扩展路线（建议）
 
 1. **接入 MCP**：新增 `agent/mcp_manager.py`，用官方 `mcp` SDK 连接 stdio/http MCP Server，`list_tools` 发现的工具加前缀并入工具清单，`execute_tool` 按前缀路由（方案已设计，待实现）；
-2. **检索优化**：Rerank 重排序、相似度阈值过滤、混合检索（关键词 + 向量）；
+2. **检索优化**：混合检索（BM25 + 向量 + RRF）与 CAG 路由已实现；后续可做 Cross-encoder 重排序、LLM 查询改写、Agentic 多轮检索；
 3. **更好切分**：按 Markdown 标题层级或 token 数切分；
-4. **加工具**：在 `agent/tools.py` 增加 schema 与实现即可；
+4. **加工具**：在 `agent/tools.py` 增加 schema 与实现即可（也可在控制台直接配置自定义工具）；
 5. **会话管理**：多会话/会话列表。
 
 ---
