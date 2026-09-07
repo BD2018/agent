@@ -26,6 +26,18 @@ DOCS_DIR = BASE_DIR / "data" / "docs"          # 存放原始文档（.md / .txt
 CHROMA_DIR = str(BASE_DIR / "data" / "chroma")  # 向量数据库持久化目录
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "BAAI/bge-small-zh-v1.5")
 
+# ---------- 检索策略 ----------
+# CAG（缓存增强生成）：知识库较小时不做检索，全部片段直接进上下文。
+# 条件：片段数 <= CAG_MAX_CHUNKS 且总字符数 <= CAG_TOKEN_THRESHOLD（中文约 1 字 ≈ 1 token）。
+CAG_TOKEN_THRESHOLD = int(os.getenv("CAG_TOKEN_THRESHOLD", "80000"))
+CAG_MAX_CHUNKS = int(os.getenv("CAG_MAX_CHUNKS", "1000"))
+# 混合检索：BM25 关键词 + 向量双路召回，RRF 融合排名；关闭则退回纯向量检索。
+HYBRID_SEARCH_ENABLED = os.getenv("HYBRID_SEARCH_ENABLED", "true").lower() in ("1", "true", "yes")
+VECTOR_TOP_K = int(os.getenv("VECTOR_TOP_K", "20"))  # 向量召回数量
+BM25_TOP_K = int(os.getenv("BM25_TOP_K", "20"))      # BM25 召回数量
+RRF_K = int(os.getenv("RRF_K", "60"))                # RRF 融合常数
+FINAL_TOP_K = int(os.getenv("FINAL_TOP_K", "3"))     # 最终返回给模型的片段数
+
 # ---------- Agent 行为 ----------
 MAX_TOOL_ROUNDS = 8    # 单轮对话最多允许的工具调用次数，防止死循环
 HISTORY_WINDOW = 20    # 发送给模型的最大历史消息条数（滑动窗口）
