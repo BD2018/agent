@@ -19,7 +19,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "search_knowledge_base",
-            "description": "在我的专属知识库中检索资料。当问题涉及我的私有文档、笔记、项目资料时优先调用。",
+            "description": "在用户的专属知识库中检索资料。对于用户的任何提问，都应优先调用此工具检索知识库中是否有相关内容，再根据检索结果回答。知识库可能包含学习笔记、项目文档、技术资料等各类内容。",
             "parameters": {
                 "type": "object",
                 "properties": {

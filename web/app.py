@@ -83,20 +83,22 @@ def user_docs_dir(user_id: int) -> Path:
 # ---------- 静态页面 ----------
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
+NOCACHE_HEADERS = {"Cache-Control": "no-cache, no-store, must-revalidate"}
+
 
 @app.get("/login")
 async def login_page():
-    return FileResponse(str(STATIC_DIR / "login.html"))
+    return FileResponse(str(STATIC_DIR / "login.html"), headers=NOCACHE_HEADERS)
 
 
 @app.get("/")
 async def chat_page():
-    return FileResponse(str(STATIC_DIR / "chat.html"))
+    return FileResponse(str(STATIC_DIR / "chat.html"), headers=NOCACHE_HEADERS)
 
 
 @app.get("/console")
 async def console_page():
-    return FileResponse(str(STATIC_DIR / "console.html"))
+    return FileResponse(str(STATIC_DIR / "console.html"), headers=NOCACHE_HEADERS)
 
 
 # ---------- 认证 ----------
@@ -209,13 +211,6 @@ async def llm_settings_check(user: dict = Depends(get_current_user)):
 
 
 # ---------- LLM 模型管理（需 llm 权限）----------
-@app.get("/api/settings/check")
-async def llm_settings_check(user: dict = Depends(get_current_user)):
-    """轻量检查：是否已配置 API Key。所有登录用户可访问。"""
-    cfg = get_llm_settings()
-    return {"has_api_key": cfg["has_api_key"]}
-
-
 @app.get("/api/models")
 async def models_list(user: dict = Depends(require_permission("llm"))):
     """返回所有模型配置列表。"""

@@ -456,6 +456,7 @@ async function loadHistory() {
   } catch (e) {
     if (e instanceof AuthError) { showLoginPrompt(); return; }
     console.error('loadHistory:', e);
+    toast('加载对话历史失败: ' + e.message, 'error');
   }
 }
 
@@ -485,17 +486,28 @@ async function checkApiKey() {
   }
 }
 
-(async () => {
+// ---------- 页面初始化 ----------
+async function initPage() {
   if (!getToken()) {
     showLoginPrompt();
     return;
   }
   const ok = await checkApiKey();
   if (ok) {
-    loadHistory();
+    await loadHistory();
     inputEl.focus();
   }
-})();
+}
+
+// 正常加载
+initPage();
+
+// bfcache 恢复时重新加载历史（浏览器前进/后退按钮）
+window.addEventListener('pageshow', (e) => {
+  if (e.persisted && getToken()) {
+    initPage();
+  }
+});
 </script>
 </body>
 </html>

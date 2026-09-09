@@ -39,21 +39,57 @@ class MemoryStore:
         with self._lock:
             self._conn.executescript(_SCHEMA)
             cols = [r[1] for r in self._conn.execute("PRAGMA table_info(messages)").fetchall()]
-            if "user_id" not in cols:
-                self._conn.execute(
-                    "ALTER TABLE messages ADD COLUMN user_id INTEGER NOT NULL DEFAULT 1"
-                )
+
+            # 旧表迁移：有 session_id 列时，重建为标准结构
             if "session_id" in cols:
                 self._conn.execute(
                     "UPDATE messages SET session_id = 1 WHERE session_id IS NULL"
                 )
+                self._conn.executescript(
+                    "CREATE TABLE messages_new ("
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                    "user_id INTEGER NOT NULL DEFAULT 1, "
+                    "role TEXT NOT NULL, "
+                    "content TEXT NOT NULL, "
+                    "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);"
+                )
                 self._conn.execute(
-                    "CREATE TABLE messages_new AS "
-                    "SELECT id, user_id, role, content, created_at FROM messages"
+                    "INSERT INTO messages_new (user_id, role, content, created_at) "
+                    "SELECT user_id, role, content, created_at FROM messages ORDER BY id"
                 )
                 self._conn.execute("DROP TABLE messages")
                 self._conn.execute("ALTER TABLE messages_new RENAME TO messages")
                 self._conn.execute(_INDEX)
+            elif "user_id" not in cols:
+                self._conn.execute(
+                    "ALTER TABLE messages ADD COLUMN user_id INTEGER NOT NULL DEFAULT 1"
+                )
+
+            # 修复：id 列不是 INTEGER PRIMARY KEY AUTOINCREMENT 时重建表
+            # （CREATE TABLE AS SELECT 不保留主键属性，导致新插入的 id 为 NULL）
+            pk_info = self._conn.execute("PRAGMA table_info(messages)").fetchall()
+            id_col = next((r for r in pk_info if r[1] == "id"), None)
+            if id_col and id_col[5] == 0:  # pk=0 表示不是主键
+                # 先给 NULL id 分配临时序号，避免重建时丢失顺序
+                self._conn.execute(
+                    "UPDATE messages SET id = rowid WHERE id IS NULL"
+                )
+                self._conn.executescript(
+                    "CREATE TABLE messages_fix ("
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                    "user_id INTEGER NOT NULL DEFAULT 1, "
+                    "role TEXT NOT NULL, "
+                    "content TEXT NOT NULL, "
+                    "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);"
+                )
+                self._conn.execute(
+                    "INSERT INTO messages_fix (user_id, role, content, created_at) "
+                    "SELECT user_id, role, content, created_at FROM messages ORDER BY id"
+                )
+                self._conn.execute("DROP TABLE messages")
+                self._conn.execute("ALTER TABLE messages_fix RENAME TO messages")
+                self._conn.execute(_INDEX)
+
             self._conn.commit()
 
     def append(self, role, content):
