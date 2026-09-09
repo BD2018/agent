@@ -736,13 +736,21 @@ async function fetchJSON(url, options = {}, timeout = 60000) {
   try {
     const r = await fetch(url, {
       ...options,
+      cache: 'no-store',
       headers: authHeaders(options.headers || {}),
       signal: ctrl.signal,
     });
     if (r.status === 401) { window.location.href = '/login'; throw new Error('未登录'); }
     const text = await r.text();
-    try { return JSON.parse(text); }
-    catch { throw new Error(`HTTP ${r.status}`); }
+    try {
+      const data = JSON.parse(text);
+      if (!r.ok) { throw new Error(data.detail || data.message || `HTTP ${r.status}`); }
+      return data;
+    }
+    catch (e) {
+      if (e.message) throw e;
+      throw new Error(`HTTP ${r.status}`);
+    }
   } finally { clearTimeout(timer); }
 }
 

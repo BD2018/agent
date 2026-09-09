@@ -100,6 +100,7 @@ def _render_template(tpl, args):
 def _execute_http_tool(tool, args):
     """http 型工具：组装请求并发起调用，响应文本作为工具结果。"""
     import httpx
+    from urllib.parse import urlparse, parse_qs
 
     cfg = tool["config"]
     method = cfg.get("method", "GET").upper()
@@ -110,7 +111,10 @@ def _execute_http_tool(tool, args):
     timeout = cfg.get("timeout") or 15
     try:
         if method == "GET":
-            resp = httpx.get(url, headers=headers, params=args, timeout=timeout)
+            # URL 中已有的 query 参数不再通过 params 重复追加
+            existing = set(parse_qs(urlparse(url).query).keys())
+            extra = {k: v for k, v in args.items() if k not in existing}
+            resp = httpx.get(url, headers=headers, params=extra or None, timeout=timeout)
         else:
             body = _render_template(cfg.get("body_template") or "", args)
             if body.strip():
