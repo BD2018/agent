@@ -485,6 +485,8 @@ async def system_info(user: dict = Depends(get_current_user)):
         "embedding_model": config.EMBEDDING_MODEL,
         "chunk_size": config.CHUNK_SIZE,
         "chunk_overlap": config.CHUNK_OVERLAP,
+        "top_k": config.FINAL_TOP_K,
+        "hybrid_search": config.HYBRID_SEARCH_ENABLED,
         "max_tool_rounds": config.MAX_TOOL_ROUNDS,
         "history_window": config.HISTORY_WINDOW,
         "chroma_dir": str(config.CHROMA_DIR),

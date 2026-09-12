@@ -259,6 +259,19 @@ a.nav-item { text-decoration: none; }
 
 /* ── 工具卡片 ── */
 .tools-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+.system-layout {
+  display: grid; grid-template-columns: minmax(300px, 2fr) 3fr; gap: 16px;
+  height: calc(100vh - 150px); min-height: 420px;
+}
+.system-layout .card { display: flex; flex-direction: column; overflow: hidden; }
+.system-layout .card .info-list,
+.system-layout .card .sys-scroll { flex: 1; min-height: 0; overflow-y: auto; }
+.system-layout .card .tools-grid { align-content: start; }
+@media (max-width: 1100px) {
+  .system-layout { grid-template-columns: 1fr; height: auto; }
+  .system-layout .card .info-list,
+  .system-layout .card .sys-scroll { max-height: 50vh; }
+}
 .tool-card {
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -581,16 +594,30 @@ a.nav-item { text-decoration: none; }
     <!-- 系统信息 -->
     <div class="page" id="page-system">
       <h2 class="page-title">系统信息</h2>
-      <div class="card">
-        <div class="card-title">模型配置</div>
-        <div class="info-list" id="system-config">
-          <div class="empty">加载中…</div>
+      <div class="system-layout">
+        <div class="card">
+          <div class="card-title">系统配置</div>
+          <div class="info-list" id="system-config">
+            <div class="empty">加载中…</div>
+          </div>
         </div>
-      </div>
-      <div class="card">
-        <div class="card-title">可用工具</div>
-        <div class="tools-grid" id="tools-list">
-          <div class="empty">加载中…</div>
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <div class="card-title" style="margin:0;">可用工具（<span id="sys-tool-count">-</span>）</div>
+            <div style="display:flex;gap:0;border:1px solid var(--border);border-radius:6px;overflow:hidden;">
+              <button class="btn btn-sm" id="sys-tool-card-btn" style="background:var(--primary);color:#fff;" onclick="switchSysToolView('card')">卡片</button>
+              <button class="btn btn-sm" id="sys-tool-list-btn" style="background:#fff;color:#666;" onclick="switchSysToolView('list')">列表</button>
+            </div>
+          </div>
+          <div class="sys-scroll">
+            <div class="tools-grid" id="tools-list">
+              <div class="empty">加载中…</div>
+            </div>
+            <table class="table" id="sys-tools-table" style="display:none;">
+              <thead><tr><th style="width:180px;">工具名</th><th>说明</th><th style="width:180px;">参数</th></tr></thead>
+              <tbody id="sys-tools-table-body"><tr><td colspan="3" class="empty">加载中…</td></tr></tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -1176,6 +1203,18 @@ $('clear-history-btn').addEventListener('click', () => {
 });
 
 // ── 系统信息 ──
+let _sysTools = [];
+
+function switchSysToolView(view) {
+  const isCard = view === 'card';
+  $('tools-list').style.display = isCard ? '' : 'none';
+  $('sys-tools-table').style.display = isCard ? 'none' : '';
+  $('sys-tool-card-btn').style.background = isCard ? 'var(--primary)' : '#fff';
+  $('sys-tool-card-btn').style.color = isCard ? '#fff' : '#666';
+  $('sys-tool-list-btn').style.background = isCard ? '#fff' : 'var(--primary)';
+  $('sys-tool-list-btn').style.color = isCard ? '#666' : '#fff';
+}
+
 async function loadSystem() {
   try {
     const s = await fetchJSON('/api/system');
@@ -1185,7 +1224,8 @@ async function loadSystem() {
       ['嵌入模型', s.embedding_model],
       ['切片大小', s.chunk_size + ' 字符'],
       ['切片重叠', s.chunk_overlap + ' 字符'],
-      ['检索 Top-K', s.top_k],
+      ['检索 Top-K', (s.top_k ?? '-') + ' 片段'],
+      ['混合检索', s.hybrid_search ? '开启（BM25+向量 RRF）' : '关闭'],
       ['最大工具轮数', s.max_tool_rounds],
       ['历史窗口', s.history_window + ' 条'],
       ['向量库路径', s.chroma_dir],
@@ -1198,12 +1238,24 @@ async function loadSystem() {
         <div class="info-value"><code>${v}</code></div>
       </div>`).join('');
 
+    _sysTools = s.tools;
+    $('sys-tool-count').textContent = s.tools.length;
     $('tools-list').innerHTML = s.tools.map(t => `
       <div class="tool-card">
         <h4>${t.name}</h4>
         <p>${t.description}</p>
         <div class="tool-params">${JSON.stringify(t.parameters, null, 2)}</div>
       </div>`).join('');
+
+    $('sys-tools-table-body').innerHTML = s.tools.length ? s.tools.map(t => {
+      const params = Object.keys((t.parameters || {}).properties || {}).join(', ') || '无参数';
+      return `
+      <tr>
+        <td><code>${t.name}</code></td>
+        <td style="max-width:420px;"><span title="${escapeHtml(t.description)}">${escapeHtml(t.description.length > 80 ? t.description.slice(0, 80) + '…' : t.description)}</span></td>
+        <td><span title="${escapeHtml(params)}">${escapeHtml(params.length > 40 ? params.slice(0, 40) + '…' : params)}</span></td>
+      </tr>`;
+    }).join('') : '<tr><td colspan="3" class="empty">暂无可用工具</td></tr>';
   } catch (e) { toast('加载失败: ' + e.message, 'error'); }
 }
 
