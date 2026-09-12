@@ -763,10 +763,16 @@ async function loadDashboard() {
       fetchJSON('/api/history'),
       fetchJSON('/api/system'),
     ]);
-    $('stat-chunks').textContent = status.chunks;
-    $('stat-docs').textContent = docs.total;
+    // 模型预热中时 chunks 为 null，显示提示并在就绪后自动刷新一次
+    $('stat-chunks').textContent = status.model_loaded === false ? '预热中…' : status.chunks;
+    $('stat-docs').textContent = docs.total ?? '预热中…';
     $('stat-chats').textContent = Math.floor(history.messages.length / 2);
     $('stat-tools').textContent = system.tools.length;
+    if (status.model_loaded === false) {
+      setTimeout(() => { if (document.querySelector('#page-dashboard.active')) loadDashboard(); }, 3000);
+      toast('知识库模型预热中，概览数据稍后自动刷新');
+      return;
+    }
 
     const recent = docs.docs.slice(0, 5);
     $('recent-docs').innerHTML = recent.length

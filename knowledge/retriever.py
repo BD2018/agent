@@ -42,6 +42,14 @@ def _ensure_shared():
                 _client = chromadb.PersistentClient(path=config.CHROMA_DIR)
 
 
+def warmup():
+    """启动预热：加载共享 Embedding 模型与 Chroma 客户端（进程内只发生一次）。
+
+    由 Web 启动钩子在后台线程调用，用户请求不再承担模型冷启动耗时。
+    """
+    _ensure_shared()
+
+
 class KnowledgeBase:
     """每个用户一个实例，绑定各自的 Chroma collection。"""
 

@@ -9,6 +9,7 @@
 """
 import asyncio
 import json
+import threading
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
@@ -63,6 +64,32 @@ app = FastAPI(title="Agent 管理系统")
 
 # ---------- 启动初始化 ----------
 init_db()  # 创建 users 表 + 预置 admin 账号
+
+# ---------- 模型预热 ----------
+# 向量模型等重资源在启动时由后台线程预载，用户请求不再承担冷启动耗时；
+# /api/status 通过 _model_ready 暴露就绪状态。
+_model_ready = threading.Event()
+
+
+def _warmup_models():
+    def _load():
+        try:
+            import jieba
+            jieba.initialize()  # 中文分词词典（BM25 检索依赖）
+            from knowledge.retriever import warmup
+            warmup()  # Embedding 模型 + Chroma 客户端
+            _model_ready.set()
+            print("向量模型预热完成，知识库已就绪")
+        except Exception as e:
+            print(f"向量模型预热失败（知识库暂不可用，对话不受影响）：{e}")
+
+    threading.Thread(target=_load, daemon=True, name="model-warmup").start()
+
+
+@app.on_event("startup")
+async def _startup_warmup():
+    _warmup_models()
+
 
 # ---------- Agent 缓存 ----------
 _agent_cache: dict[int, Agent] = {}
@@ -417,7 +444,10 @@ async def reset(user: dict = Depends(get_current_user)):
 @app.get("/api/status")
 async def status(user: dict = Depends(get_current_user)):
     uid = user["id"]
-    return {"status": "ok", "chunks": get_kb(uid).count()}
+    if not _model_ready.is_set():
+        # 预热中不触发模型加载，避免请求被冷启动阻塞
+        return {"status": "warming", "model_loaded": False, "chunks": None}
+    return {"status": "ok", "model_loaded": True, "chunks": get_kb(uid).count()}
 
 
 @app.get("/api/chunks")
