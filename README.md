@@ -8,11 +8,13 @@
 
 ## 一、它能做什么
 
-- **对话**：Web 端打字机流式回答；自动判断何时调用工具（查知识库、查时间、读文件）
-- **知识库**：Web 端上传文档，自动切片、向量化、增量更新，上传后立即可被检索（无需重启）
-- **多用户**：注册/登录（JWT），每个用户拥有独立的知识库、对话历史、文件目录
-- **管理系统**：概览仪表盘、知识库管理、文档列表、向量片段查看、对话历史、系统信息、模型设置、用户管理
+- **对话**：Web 端打字机流式回答；自动判断何时调用工具（查知识库、查时间、读文件）；固定问答对语义命中时直接返回预设回答
+- **知识库**：Web 端上传文档，自动切片、向量化、增量更新，上传后立即可被检索（无需重启）；混合检索（BM25+向量+RRF）与 CAG 小库直读自动路由
+- **多用户**：注册/登录（JWT），每个用户拥有独立的知识库、对话历史、文件目录，可自定义助手角色人设
+- **管理系统**：概览仪表盘、知识库管理、文档列表、向量片段查看、对话历史、系统信息、模型设置、工具管理、接口文档、用户管理（共 10 个模块，按权限显示）
 - **多模型**：可保存多套模型配置（名称 + Base URL + Key + 模型标识），一键切换启用，Key 加密存储
+- **自定义工具**：控制台配置 HTTP 型工具（调用外部接口）与本地函数型工具（MySQL 取数 + 安全公式求值），内置工具可单独启停
+- **开放 API**：`/open/v1/*` 供外部系统以 API Key（sk-xxx）调用文档上传与管理
 - **权限**：admin 拥有全部权限，可按页面给普通用户授权
 - **CLI 模式**：`main.py` 命令行交互保留，与 Web 共用同一套核心代码
 
@@ -62,6 +64,8 @@ my_agent/
 ├── config.py              # 全局配置（路径、端口、JWT、切分参数等）
 ├── crypto.py              # Fernet 对称加密（API Key 落盘加密）
 ├── requirements.txt
+├── TOOL_AND_MCP_GUIDE.md  # 工具调用与 MCP 接入链路文档（MCP 部分为设计方案）
+├── CHAT_PIPELINE.md       # 对话全链路文档：从用户输入到返回文字的完整旅程
 ├── .env / .env.example    # 环境变量（JWT_SECRET/ENCRYPTION_KEY 首次自动生成）
 ├── agent/
 │   ├── core.py            # Agent 核心：思考-行动-观察循环 + chat_stream 流式
@@ -94,7 +98,7 @@ my_agent/
     ├── chroma/            # 向量数据库（per-user collection）
     ├── memory.db          # 对话历史（含 user_id 列）
     ├── users.db           # 用户账号
-    └── settings.db        # 模型配置（API Key 加密存储）
+    └── settings.db        # 元数据库：模型配置/自定义工具/问答对/数据源/API Key（敏感字段加密）
 ```
 
 ---
@@ -158,6 +162,7 @@ python main.py
 | `/login` | 登录/注册 | 公开 |
 | `/` | 对话页 | 默认可浏览，发消息需登录；流式打字机 + 工具调用过程展示 |
 | `/console` | 管理系统 | 需登录，侧边栏按权限显示模块 |
+| `/api-docs` | 开放接口文档页 | 公开 |
 
 ### 管理系统模块
 
@@ -170,11 +175,13 @@ python main.py
 | 对话历史 | history | 全部问答记录、一键清空 |
 | 系统信息 | system | 运行配置与可用工具清单 |
 | 模型设置 | llm | 多模型增删改、测试连接、启用切换 |
+| 工具管理 | tools | 内置工具启停、自定义工具（HTTP 型/本地函数型）CRUD 与试调、数据源管理 |
+| 接口文档 | apidocs | 开放接口说明页（/api-docs） |
 | 用户管理 | users | 新增用户、重置密码、页面授权、删除（仅 admin 可见可操作） |
 
 ### 权限模型
 
-- `auth/models.py` 中 `ALL_PAGES` 定义 8 个页面权限 key
+- `auth/models.py` 中 `ALL_PAGES` 定义 10 个页面权限 key；新用户默认授予 7 个常规页（模型设置/工具管理/用户管理需管理员单独勾选）
 - admin（id=1）恒拥有全部权限
 - 普通用户由 admin 通过 `PUT /api/users/{id}/permissions` 授予页面权限；无权限的模块在侧边栏隐藏、后端接口返回 403
 
@@ -209,6 +216,46 @@ python main.py
 | GET/PUT/DELETE | `/api/models/{id}` | 详情 / 更新 / 删除 | llm |
 | POST | `/api/models/{id}/enable` | 启用（自动禁用其他） | llm |
 | POST | `/api/models/test` | 测试连接 | llm |
+
+### 工具与数据源
+
+| 方法 | 路径 | 说明 | 权限 |
+|------|------|------|------|
+| GET/POST | `/api/tools` | 工具清单（内置+自定义）/ 新增自定义工具 | tools |
+| PUT | `/api/tools/builtin/{name}` | 启用/禁用内置工具 | tools |
+| GET/PUT/DELETE | `/api/tools/{id}` | 详情 / 更新 / 删除 | tools |
+| PUT | `/api/tools/{id}/enabled` | 启用/禁用自定义工具 | tools |
+| POST | `/api/tools/{id}/test` | 工具试调 | tools |
+| GET/POST | `/api/datasources` | MySQL 数据源列表 / 新增 | tools |
+| PUT/DELETE | `/api/datasources/{id}` | 更新 / 删除 | tools |
+| POST | `/api/datasources/test` | 连接测试（未保存的配置） | tools |
+| POST | `/api/datasources/{id}/test` | 连接测试（已保存） | tools |
+| POST | `/api/datasources/{id}/query` | 手动执行查询 | tools |
+
+### 固定问答对
+
+| 方法 | 路径 | 说明 | 权限 |
+|------|------|------|------|
+| GET/POST | `/api/qa-pairs` | 列表 / 新增 | knowledge |
+| PUT/DELETE | `/api/qa-pairs/{id}` | 更新 / 删除 | knowledge |
+| PUT | `/api/qa-pairs/{id}/enabled` | 启用/禁用 | knowledge |
+
+### API Key 与开放接口
+
+| 方法 | 路径 | 说明 | 权限 |
+|------|------|------|------|
+| GET/POST | `/api/api-keys` | 我的 Key 列表 / 创建（明文仅显示一次） | 登录 |
+| PUT | `/api/api-keys/{id}/enabled` | 启用/禁用 | 登录 |
+| DELETE | `/api/api-keys/{id}` | 删除 | 登录 |
+| POST | `/open/v1/upload` | 外部上传文档入库（multipart） | API Key |
+| GET | `/open/v1/docs` | 外部查询文档列表 | API Key |
+| DELETE | `/open/v1/docs/{filename}` | 外部删除文档 | API Key |
+
+### 个人资料
+
+| 方法 | 路径 | 说明 | 权限 |
+|------|------|------|------|
+| GET/PUT | `/api/profile/role` | 查看 / 设置自己的助手角色人设 | 登录 |
 
 ### 知识库
 
@@ -245,6 +292,10 @@ python main.py
 | 记忆隔离 | `messages` 表按 `user_id` 过滤；旧库自动迁移 |
 | 文件隔离 | 原始文档存 `data/docs/{user_id}/` |
 | 并发安全 | Chroma 写操作与 SQLite 均加线程锁 |
+| 自定义工具 | config 字段（URL/headers/公式）Fernet 加密；公式 AST 白名单求值防代码注入 |
+| 数据源 | 密码 Fernet 加密；SQL 模板命名参数化执行，防 SQL 注入 |
+| 开放 API Key | 明文仅创建时返回一次，库中只存 SHA-256 哈希 |
+| 启动预热 | 向量模型由后台线程预载；`HF_HUB_OFFLINE=1` 免启动联网校验 |
 
 ---
 
@@ -252,12 +303,15 @@ python main.py
 
 ### 1. Agent 循环（agent/core.py）
 
-1. 组装上下文：系统提示词 + 最近 N 条历史（`HISTORY_WINDOW=20` 滑动窗口）+ 本轮输入；
-2. 请求 LLM：同时携带工具清单（内置工具，OpenAI function-calling 格式）；
+0. 固定问答短路：问题命中已启用的问答对（语义相似度达标）时直接返回预设回答，不进 LLM；
+1. 组装上下文：系统提示词（叠加用户自定义的角色人设）+ 最近 N 条历史（`HISTORY_WINDOW=20` 滑动窗口）+ 本轮输入；
+2. 请求 LLM：同时携带 `get_all_tools()` 动态工具清单（内置工具按启停过滤 + 启用中的自定义工具，每轮实时读取）；
 3. 模型决策：返回 `tool_calls` → 本地执行，结果以 `role="tool"` 追加后继续循环；无 `tool_calls` → 输出最终回答；
 4. 保险丝：`MAX_TOOL_ROUNDS=8` 防死循环。
 
 `chat_stream()` 使用 `stream=True`，将 delta 内容以 SSE 事件（`text` / `tool` / `done`）实时推给前端，实现打字机效果；工具调用阶段先累积完整参数再执行。
+
+工具定义、发现、执行与 MCP 接入设计的完整链路文档见 [TOOL_AND_MCP_GUIDE.md](TOOL_AND_MCP_GUIDE.md)（其中 MCP 章节为设计方案）。
 
 ### 2. RAG 知识库（knowledge/）
 
@@ -286,6 +340,10 @@ SQLite 存储 user/assistant 最终问答对（工具中间过程不落库），
 
 `model_configs` 表存多套配置，`enabled=1` 的唯一一条生效；切换启用时清空 Agent 缓存使新配置立即生效；旧 `settings` 表数据首次启动自动迁移。
 
+### 5. 启动预热与模型离线
+
+Web 启动时由后台线程预载 jieba 词典、向量模型与 Chroma 客户端，用户请求不再承担冷启动耗时；`/api/status` 的 `model_loaded` 暴露就绪状态，前端在预热完成前显示提示并自动刷新。`.env` 中 `HF_HUB_OFFLINE=1` 使模型加载只读本地缓存，杜绝 HuggingFace 联网校验超时导致的首次加载缓慢或失败。
+
 ---
 
 ## 九、配置项（.env）
@@ -308,14 +366,15 @@ SQLite 存储 user/assistant 最终问答对（工具中间过程不落库），
 | `JWT_SECRET` | 自动生成 | 首次启动随机生成并写回 |
 | `JWT_EXPIRE_HOURS` | `168` | Token 有效期（7 天） |
 | `ENCRYPTION_KEY` | 自动生成 | Fernet 密钥，用于加密 API Key |
+| `HF_HUB_OFFLINE` | `1` | HuggingFace 离线模式：只读本地模型缓存，避免启动联网校验卡顿；首次下载新模型时临时关闭 |
 
-注意：`.env` 中**不存放任何 API Key**；Key 的唯一入口是 Web 模型设置页。
+注意：`.env` 中**不存放任何 API Key**；Key 的唯一入口是 Web 模型设置页。兼容说明：`LLM_BASE_URL`/`LLM_MODEL` 未设置时回退读取旧的 `DEEPSEEK_BASE_URL`/`MODEL` 变量名。
 
 ---
 
 ## 十、扩展路线（建议）
 
-1. **接入 MCP**：新增 `agent/mcp_manager.py`，用官方 `mcp` SDK 连接 stdio/http MCP Server，`list_tools` 发现的工具加前缀并入工具清单，`execute_tool` 按前缀路由（方案已设计，待实现）；
+1. **接入 MCP**：新增 `agent/mcp_manager.py`，用官方 `mcp` SDK 连接 stdio/http MCP Server，`list_tools` 发现的工具加前缀并入工具清单，`execute_tool` 按前缀路由（完整设计方案见 `TOOL_AND_MCP_GUIDE.md`，代码待实现）；
 2. **检索优化**：混合检索（BM25 + 向量 + RRF）与 CAG 路由已实现；后续可做 Cross-encoder 重排序、LLM 查询改写、Agentic 多轮检索；
 3. **更好切分**：按 Markdown 标题层级或 token 数切分；
 4. **加工具**：在 `agent/tools.py` 增加 schema 与实现即可（也可在控制台直接配置自定义工具）；
@@ -336,4 +395,5 @@ SQLite 存储 user/assistant 最终问答对（工具中间过程不落库），
 | .doc 读取失败 | 用 Word 另存为 .docx，或本机装 Word + pywin32 |
 | 想清空某用户知识库 | 控制台删除对应文档；或停服后删 `data/chroma/`（会清空所有用户） |
 | 忘记 admin 密码 | 停服后删除 `data/users.db` 重启会重建 admin/123456（用户数据丢失，慎用） |
+| 启动后首次加载知识库很慢/失败 | 已由 `HF_HUB_OFFLINE=1` + 启动预热解决；若提示模型未下载，临时关闭离线模式或设 `HF_ENDPOINT=https://hf-mirror.com` |
 | 端口被占用 | `.env` 中改 `WEB_PORT` |

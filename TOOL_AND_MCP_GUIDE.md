@@ -2,6 +2,8 @@
 
 > 本文档描述项目中 Agent 使用可调用工具（内置工具、自定义 HTTP/本地函数工具）和 MCP（Model Context Protocol）工具的完整链路，涵盖工具定义、发现、触发、执行、结果回传的全过程。
 
+> **状态说明**：第 2 章描述的内置/自定义工具链路为**已实现**行为；**第 3 章 MCP 接入为设计方案，代码尚未落地**（`agent/mcp_manager.py` 未创建，`get_all_tools()`/`execute_tool()` 暂不含 MCP 分支），相关代码样例仅供实现时参考。
+
 ---
 
 ## 目录
@@ -63,7 +65,7 @@
 └──────────────────────────────────────────────────────────────  │
 ```
 
-三种工具来源统一汇入 `get_all_tools()`，Agent 每轮对话动态读取，控制台改动即时生效，无需重启服务。
+三种工具来源统一汇入 `get_all_tools()`，Agent 每轮对话动态读取，控制台改动即时生效，无需重启服务（MCP 为规划中的第三种来源，尚未接入，见第 3 章设计方案）。
 
 ---
 
@@ -164,11 +166,8 @@ def get_all_tools():
             },
         })
 
-    # 3. MCP 工具（见第 3 章）
-    from agent.mcp_manager import get_mcp_tools
-    tools.extend(get_mcp_tools())
-
     return tools
+    # 3. MCP 工具接入后在此扩展（设计方案见第 3 章，尚未实现）
 ```
 
 **关键特性**：
@@ -234,20 +233,27 @@ SYSTEM_PROMPT = """你是用户的专属 AI 助手，请遵守以下规则：
 
 ```python
 def execute_tool(name, arguments_json, user_id):
-    args = json.loads(arguments_json or "{}")
+    try:
+        args = json.loads(arguments_json or "{}")
+    except json.JSONDecodeError:
+        return f"错误：工具参数不是合法 JSON：{arguments_json}"
+    if not isinstance(args, dict):
+        return "错误：工具参数必须是 JSON 对象"
 
     # ── 内置工具 ──
     if name == "search_knowledge_base":
+        if not str(args.get("query") or "").strip():
+            return "错误：检索关键词不能为空"
+        from knowledge.retriever import get_kb
         return get_kb(user_id).search(args["query"])   # 按用户隔离的向量库
     if name == "get_current_time":
         return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     if name == "read_file":
+        if not args.get("path"):
+            return "错误：缺少文件路径参数"
         return _read_file(args["path"])               # 限制项目目录内
 
-    # ── MCP 工具 ──
-    if name.startswith("mcp__"):
-        from agent.mcp_manager import execute_mcp_tool
-        return execute_mcp_tool(name, args)
+    # ── MCP 工具（设计方案，尚未实现；接入后按 mcp__ 前缀路由，见第 3 章）──
 
     # ── 自定义工具 ──
     tool = get_custom_tool_by_name(name)
@@ -366,9 +372,11 @@ _execute_local_tool(tool, args)
 
 ---
 
-## 3. MCP 工具接入链路
+## 3. MCP 工具接入链路（设计方案，尚未实现）
 
 ### 3.1 MCP 概述
+
+> ⚠️ 本章全部内容（含 `mcp_servers` 表结构、`agent/mcp_manager.py` 代码、控制台管理界面）为**设计方案**，当前代码库中尚未实现，阅读时请注意区分设计与现状。
 
 [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) 是一个开放协议，用于让 AI 应用连接外部工具和数据源。本项目作为 **MCP Client**，连接外部 MCP Server，将其工具纳入 Agent 的可调用工具池。
 
@@ -548,7 +556,7 @@ def _run_async(coro, timeout=30):
 | 工具试调 | 直接传入参数测试工具执行，验证配置正确性 |
 | 数据源管理 | 管理本地函数工具使用的 MySQL 数据源，支持连接测试 |
 
-### MCP 服务器管理（控制台 → 工具管理 → MCP 服务器区块）
+### MCP 服务器管理（设计方案，尚未实现；规划入口：控制台 → 工具管理 → MCP 服务器区块）
 
 | 功能 | 说明 |
 |------|------|
