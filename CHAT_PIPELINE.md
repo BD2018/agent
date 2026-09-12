@@ -166,7 +166,7 @@ get_kb(user_id) ──▶ 该用户专属 collection：user_{id}_docs
 │  知识库为空？ ──▶ 返回「知识库当前为空」提示，模型据此答复用户        │
 │                                                              │
 │  小库（片段数 ≤ CAG_MAX_CHUNKS=1000                            │
-│        且总字数 ≤ CAG_TOKEN_THRESHOLD=80000）？                │
+│        且总字数 ≤ CAG_TOKEN_THRESHOLD=12000）？                │
 │        ──▶ CAG：跳过检索，全部片段直接拼进上下文                  │
 │                                                              │
 │  大库且 HYBRID_SEARCH_ENABLED=true（默认）──▶ 混合检索：          │

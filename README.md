@@ -47,7 +47,7 @@
 知识库链路：
   上传文档 ─▶ 提取纯文本 ─▶ 切分(400字/片, 重叠50) ─▶ bge 向量化 ─▶ Chroma
   提问 ─▶ Agent 决策调用 search_knowledge_base ─▶ 自动路由：
-        ├─ 小库（≤1000片且≤8万字）→ CAG：全文直接进上下文，不检索
+        ├─ 小库（≤1000片且≤1.2万字）→ CAG：全文直接进上下文，不检索
         └─ 大库 → 混合检索：BM25关键词 + 向量双路召回 ─▶ RRF融合 ─▶ top3 拼入上下文
 ```
 
@@ -244,9 +244,10 @@ python main.py
 
 | 方法 | 路径 | 说明 | 权限 |
 |------|------|------|------|
-| GET/POST | `/api/api-keys` | 我的 Key 列表 / 创建（明文仅显示一次） | 登录 |
+| GET/POST | `/api/api-keys` | 我的 Key 列表 / 创建（明文仅显示一次，可选模式） | 登录 |
 | PUT | `/api/api-keys/{id}/enabled` | 启用/禁用 | 登录 |
 | DELETE | `/api/api-keys/{id}` | 删除 | 登录 |
+| POST | `/open/v1/chat/completions` | OpenAI 兼容对话（按 Key 模式分流：Agent 完整链路 / 纯模型代理，支持流式） | API Key |
 | POST | `/open/v1/upload` | 外部上传文档入库（multipart） | API Key |
 | GET | `/open/v1/docs` | 外部查询文档列表 | API Key |
 | DELETE | `/open/v1/docs/{filename}` | 外部删除文档 | API Key |
@@ -355,7 +356,7 @@ Web 启动时由后台线程预载 jieba 词典、向量模型与 Chroma 客户�
 | `LLM_BASE_URL` | `https://api.deepseek.com` | 初始 Base URL，Web 保存后覆盖 |
 | `LLM_MODEL` | `deepseek-chat` | 初始模型标识，Web 保存后覆盖 |
 | `EMBEDDING_MODEL` | `BAAI/bge-small-zh-v1.5` | 向量模型 |
-| `CAG_TOKEN_THRESHOLD` | `80000` | CAG 模式总字数上限（小库全文进上下文） |
+| `CAG_TOKEN_THRESHOLD` | `12000` | CAG 模式总字数上限（小库全文进上下文；过大易稀释模型注意力） |
 | `CAG_MAX_CHUNKS` | `1000` | CAG 模式片段数上限 |
 | `HYBRID_SEARCH_ENABLED` | `true` | 混合检索开关，`false` 退回纯向量 |
 | `VECTOR_TOP_K` / `BM25_TOP_K` | `20` / `20` | 双路召回数量 |
