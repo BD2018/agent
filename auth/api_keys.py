@@ -16,6 +16,9 @@ _lock = threading.Lock()
 
 KEY_PREFIX = "sk-"
 
+# Key 调用模式：agent=走 Agent 完整链路（知识库/工具/问答），proxy=纯模型代理透传
+KEY_MODES = ("agent", "proxy")
+
 
 def _get_conn():
     conn = sqlite3.connect(config.SETTINGS_DB, check_same_thread=False)
@@ -32,11 +35,19 @@ def _init_db():
                 name TEXT NOT NULL DEFAULT '',
                 key_hash TEXT UNIQUE NOT NULL,
                 key_prefix TEXT NOT NULL,
+                mode TEXT NOT NULL DEFAULT 'agent',
                 enabled INTEGER NOT NULL DEFAULT 1,
+                call_count INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                 last_used_at TEXT
             )
         """)
+        # 旧库迁移：补 mode / call_count 列，存量 Key 默认 agent 模式
+        cols = [r["name"] for r in conn.execute("PRAGMA table_info(api_keys)").fetchall()]
+        if "mode" not in cols:
+            conn.execute("ALTER TABLE api_keys ADD COLUMN mode TEXT NOT NULL DEFAULT 'agent'")
+        if "call_count" not in cols:
+            conn.execute("ALTER TABLE api_keys ADD COLUMN call_count INTEGER NOT NULL DEFAULT 0")
         conn.commit()
 
 
@@ -47,15 +58,17 @@ def _hash(key: str) -> str:
     return hashlib.sha256(key.encode()).hexdigest()
 
 
-def create_api_key(user_id: int, name: str = "") -> dict:
-    """创建 Key，返回结果中包含一次性明文 key。"""
+def create_api_key(user_id: int, name: str = "", mode: str = "agent") -> dict:
+    """创建 Key，返回结果中包含一次性明文 key。mode 决定开放对话接口的行为。"""
+    if mode not in KEY_MODES:
+        raise ValueError(f"无效的调用模式：{mode}（可选：{'/'.join(KEY_MODES)}）")
     key = KEY_PREFIX + secrets.token_urlsafe(32)
     display_prefix = key[:12] + "..."
     with _lock, _get_conn() as conn:
         cur = conn.execute(
-            "INSERT INTO api_keys (user_id, name, key_hash, key_prefix) "
-            "VALUES (?, ?, ?, ?)",
-            (user_id, (name or "").strip(), _hash(key), display_prefix),
+            "INSERT INTO api_keys (user_id, name, key_hash, key_prefix, mode) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (user_id, (name or "").strip(), _hash(key), display_prefix, mode),
         )
         conn.commit()
         new_id = cur.lastrowid
@@ -71,8 +84,9 @@ def create_api_key(user_id: int, name: str = "") -> dict:
 def list_api_keys(user_id: int) -> list:
     with _lock, _get_conn() as conn:
         rows = conn.execute(
-            "SELECT id, user_id, name, key_prefix, enabled, created_at, last_used_at "
-            "FROM api_keys WHERE user_id = ? ORDER BY id", (user_id,)
+            "SELECT id, user_id, name, key_prefix, mode, enabled, call_count, "
+            "created_at, last_used_at FROM api_keys WHERE user_id = ? ORDER BY id",
+            (user_id,),
         ).fetchall()
     result = []
     for r in rows:
@@ -103,12 +117,12 @@ def delete_api_key(key_id: int, user_id: int) -> bool:
 
 
 def verify_api_key(key: str):
-    """校验 Key，有效则返回 {key_id, user_id} 并刷新最后使用时间。"""
+    """校验 Key，有效则返回 {key_id, user_id, mode} 并刷新最后使用时间。"""
     if not key or not key.startswith(KEY_PREFIX):
         return None
     with _lock, _get_conn() as conn:
         row = conn.execute(
-            "SELECT id, user_id, enabled FROM api_keys WHERE key_hash = ?",
+            "SELECT id, user_id, mode, enabled FROM api_keys WHERE key_hash = ?",
             (_hash(key),),
         ).fetchone()
         if not row or not row["enabled"]:
@@ -118,4 +132,18 @@ def verify_api_key(key: str):
             (datetime.now().isoformat(timespec="seconds"), row["id"]),
         )
         conn.commit()
-    return {"key_id": row["id"], "user_id": row["user_id"]}
+    return {
+        "key_id": row["id"],
+        "user_id": row["user_id"],
+        "mode": row["mode"] if row["mode"] in KEY_MODES else "agent",
+    }
+
+
+def bump_usage(key_id: int) -> None:
+    """对话类调用计数（/open/v1/chat/completions 使用）。"""
+    with _lock, _get_conn() as conn:
+        conn.execute(
+            "UPDATE api_keys SET call_count = call_count + 1 WHERE id = ?",
+            (key_id,),
+        )
+        conn.commit()

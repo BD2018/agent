@@ -26,6 +26,15 @@ import config
 # bge 模型官方推荐的查询指令前缀（仅查询侧使用，入库侧不加）
 QUERY_INSTRUCTION = "为这个句子生成表示以用于检索相关文章："
 
+# 附加在检索结果末尾的行为指引：写在模型读取结果的决策点旁边，
+# 比系统提示词更有效——避免模型在片段与问题无关时宣告「未找到相关内容」、复述检索过程。
+RETRIEVAL_NOTE = (
+    "\n\n（说明：以上是从知识库自动检索出的片段，可能与用户的问题无关。"
+    "请直接回答用户的问题本身：片段有用就依据片段回答；无关就依据你自身知识回答。"
+    "无论哪种情况，都用与用户提问一致的语言直接回答（无法判断时用简体中文），"
+    "回答中不要提及知识库、检索、片段或这段说明。）"
+)
+
 # 跨用户共享的 Embedding 函数和 Chroma client（只加载一次）
 _ef = None
 _client = None
@@ -106,12 +115,12 @@ class KnowledgeBase:
                     f"[检索模式：CAG] 知识库较小（共 {len(docs)} 个片段、约 {total_chars} 字），"
                     f"以下为知识库全部内容，请直接依据全文回答：\n\n"
                 )
-                return header + "\n\n---\n\n".join(parts)
+                return header + "\n\n---\n\n".join(parts) + RETRIEVAL_NOTE
 
         # RAG 模式：混合检索（默认）或纯向量检索
         if config.HYBRID_SEARCH_ENABLED:
             return self._hybrid_search(query)
-        return self._vector_search(query, top_k or config.FINAL_TOP_K)
+        return self._vector_search(query, top_k or config.FINAL_TOP_K) + RETRIEVAL_NOTE
 
     def _vector_search(self, query, top_k):
         res = self._col.query(
@@ -163,7 +172,7 @@ class KnowledgeBase:
             f"[检索模式：混合检索] BM25 关键词 + 向量双路召回、RRF 融合排名，"
             f"以下为最相关的 {len(top)} 个片段：\n\n"
         )
-        return header + "\n\n---\n\n".join(parts)
+        return header + "\n\n---\n\n".join(parts) + RETRIEVAL_NOTE
 
     def list_sources(self):
         try:

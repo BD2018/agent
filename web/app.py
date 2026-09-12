@@ -10,11 +10,14 @@
 import asyncio
 import json
 import threading
+import time
 from pathlib import Path
+from uuid import uuid4
 
 from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from openai import OpenAI
 
 import config
 from agent import datasource, tool_store
@@ -32,6 +35,7 @@ from agent.llm_settings import (
 )
 from agent.tools import get_all_tools
 from auth.api_keys import (
+    bump_usage,
     create_api_key,
     delete_api_key,
     list_api_keys,
@@ -357,7 +361,8 @@ async def upload(
 async def list_docs(user: dict = Depends(get_current_user)):
     uid = user["id"]
     kb = get_kb(uid)
-    return {"docs": kb.list_sources(), "total": kb.count()}
+    docs = kb.list_sources()
+    return {"docs": docs, "total": len(docs)}
 
 
 @app.delete("/api/docs/{filename}")
@@ -725,7 +730,11 @@ async def api_keys_list(user: dict = Depends(get_current_user)):
 @app.post("/api/api-keys")
 async def api_keys_create(payload: dict, user: dict = Depends(get_current_user)):
     name = (payload.get("name") or "").strip() or "未命名"
-    key = create_api_key(user["id"], name)
+    mode = payload.get("mode") or "agent"
+    try:
+        key = create_api_key(user["id"], name, mode=mode)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
     return {"key": key}
 
 
@@ -797,7 +806,8 @@ async def open_list_docs(request: Request):
     """列出 Key 所属用户已入库的文档。"""
     user = get_open_api_user(request)
     kb = get_kb(user["id"])
-    return {"docs": kb.list_sources(), "total": kb.count()}
+    docs = kb.list_sources()
+    return {"docs": docs, "total": len(docs), "chunks": kb.count()}
 
 
 @app.delete("/open/v1/docs/{filename}")
@@ -811,6 +821,181 @@ async def open_remove_doc(filename: str, request: Request):
     if path.exists():
         path.unlink()
     return {"deleted": filename, "total": kb.count()}
+
+
+# ---------- 开放对话接口（OpenAI 兼容，按 Key 模式分流）----------
+_OPEN_CHAT_PARAMS = (
+    "temperature", "top_p", "max_tokens", "presence_penalty", "frequency_penalty",
+)
+
+
+def _openai_error(status: int, message: str, err_type: str = "invalid_request_error"):
+    """OpenAI SDK 可解析的错误响应格式。"""
+    return JSONResponse(
+        status_code=status,
+        content={"error": {"message": message, "type": err_type, "param": None, "code": None}},
+    )
+
+
+def _open_chat_auth(request: Request):
+    """开放对话鉴权，返回 (user, key_info)；失败返回错误响应而非抛异常。"""
+    key = (request.headers.get("X-API-Key") or "").strip()
+    if not key:
+        auth = request.headers.get("Authorization") or ""
+        if auth.startswith("Bearer "):
+            key = auth[7:].strip()
+    info = verify_api_key(key) if key else None
+    if not info:
+        return None, _openai_error(
+            401, "无效或缺失的 API Key（X-API-Key 或 Authorization: Bearer sk-xxx）",
+            "authentication_error",
+        )
+    user = get_user_by_id(info["user_id"])
+    if not user:
+        return None, _openai_error(401, "API Key 所属用户不存在", "authentication_error")
+    bump_usage(info["key_id"])
+    return (user, info), None
+
+
+def _last_user_text(messages: list) -> str:
+    """取 messages 中最后一条 user 消息的文本（Agent 模式的输入）。"""
+    for m in reversed(messages):
+        if isinstance(m, dict) and m.get("role") == "user":
+            c = m.get("content")
+            if isinstance(c, list):  # 多模态内容数组时取文本片段
+                c = " ".join(p.get("text", "") for p in c if isinstance(p, dict))
+            return str(c or "").strip()
+    return ""
+
+
+def _chat_completion_payload(model: str, content: str, finish: str = "stop") -> dict:
+    return {
+        "id": f"chatcmpl-{uuid4().hex}",
+        "object": "chat.completion",
+        "created": int(time.time()),
+        "model": model,
+        "choices": [{
+            "index": 0,
+            "message": {"role": "assistant", "content": content},
+            "finish_reason": finish,
+        }],
+        "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+    }
+
+
+async def _open_proxy_chat(messages: list, stream: bool, params: dict):
+    """proxy 模式：纯模型代理，把 messages 原样转发给当前启用的模型。"""
+    cfg = get_llm_settings()
+    if not cfg["has_api_key"]:
+        return _openai_error(502, "服务端尚未配置可用模型，请管理员在控制台启用", "api_error")
+    client = OpenAI(api_key=cfg["api_key"], base_url=cfg["base_url"], timeout=60)
+    model = cfg["model"]
+
+    if not stream:
+        try:
+            resp = await asyncio.to_thread(
+                client.chat.completions.create, model=model, messages=messages, **params,
+            )
+        except Exception as e:
+            return _openai_error(502, f"上游模型调用失败：{e}", "api_error")
+        return resp.model_dump(exclude_none=True)
+
+    def generate():
+        try:
+            upstream = client.chat.completions.create(
+                model=model, messages=messages, stream=True, **params,
+            )
+            for chunk in upstream:
+                yield f"data: {chunk.model_dump_json(exclude_none=True)}\n\n"
+            yield "data: [DONE]\n\n"
+        except Exception as e:
+            err = json.dumps(
+                {"error": {"message": f"上游模型调用失败：{e}", "type": "api_error"}},
+                ensure_ascii=False,
+            )
+            yield f"data: {err}\n\n"
+            yield "data: [DONE]\n\n"
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+async def _open_agent_chat(user: dict, messages: list, stream: bool):
+    """agent 模式：走 Agent 完整链路（QA 短路/知识库/工具），按 Key 归属用户隔离。"""
+    text = _last_user_text(messages)
+    if not text:
+        return _openai_error(400, "messages 中未找到有效的 user 消息内容")
+    agent = get_agent(user["id"])
+    model = get_llm_settings()["model"]
+
+    if not stream:
+        try:
+            answer = await asyncio.to_thread(agent.chat, text)
+        except Exception as e:
+            return _openai_error(500, f"对话执行失败：{e}", "api_error")
+        return _chat_completion_payload(model, answer)
+
+    def generate():
+        try:
+            for ev_type, content in agent.chat_stream(text):
+                if ev_type != "text":
+                    continue  # tool/done 事件在服务端消化，不进入 OpenAI 流
+                chunk = {
+                    "id": f"chatcmpl-{uuid4().hex[:8]}",
+                    "object": "chat.completion.chunk",
+                    "created": int(time.time()),
+                    "model": model,
+                    "choices": [{"index": 0, "delta": {"content": content}, "finish_reason": None}],
+                }
+                yield f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
+            final = {
+                "id": f"chatcmpl-{uuid4().hex[:8]}",
+                "object": "chat.completion.chunk",
+                "created": int(time.time()),
+                "model": model,
+                "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
+            }
+            yield f"data: {json.dumps(final, ensure_ascii=False)}\n\n"
+            yield "data: [DONE]\n\n"
+        except Exception as e:
+            err = json.dumps(
+                {"error": {"message": f"对话执行失败：{e}", "type": "api_error"}},
+                ensure_ascii=False,
+            )
+            yield f"data: {err}\n\n"
+            yield "data: [DONE]\n\n"
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@app.post("/open/v1/chat/completions")
+async def open_chat_completions(request: Request):
+    """OpenAI 兼容对话端点：行为由 Key 的模式决定（agent=完整链路 / proxy=纯代理）。"""
+    auth, err = _open_chat_auth(request)
+    if err:
+        return err
+    user, info = auth
+
+    try:
+        body = await request.json()
+    except Exception:
+        return _openai_error(400, "请求体不是合法 JSON")
+    messages = body.get("messages")
+    if not isinstance(messages, list) or not messages:
+        return _openai_error(400, "messages 必须是非空数组")
+    stream = bool(body.get("stream"))
+    params = {k: body[k] for k in _OPEN_CHAT_PARAMS if body.get(k) is not None}
+
+    if info.get("mode") == "proxy":
+        return await _open_proxy_chat(messages, stream, params)
+    return await _open_agent_chat(user, messages, stream)
 
 
 # ---------- 个人角色定义 ----------

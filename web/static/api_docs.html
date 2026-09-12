@@ -16,16 +16,36 @@
     --bg-method-del: #fdecea;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
   body {
     font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
     color: var(--text);
     background: #fff;
     padding: 28px 32px 60px;
-    max-width: 960px;
-    margin: 0 auto;
     line-height: 1.7;
     font-size: 14px;
   }
+  .layout {
+    display: flex; gap: 32px; align-items: flex-start;
+    max-width: 1240px; margin: 0 auto;
+  }
+  .toc {
+    position: sticky; top: 20px;
+    width: 230px; flex-shrink: 0;
+    background: #fafbfc; border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px 10px;
+    max-height: calc(100vh - 90px); overflow-y: auto;
+  }
+  .toc-title { font-weight: 700; font-size: 13px; padding: 0 10px 8px; color: var(--text); }
+  .toc a {
+    display: block; padding: 5px 10px; font-size: 13px;
+    color: var(--muted); text-decoration: none;
+    border-left: 2px solid transparent; border-radius: 0 4px 4px 0;
+  }
+  .toc a:hover { color: var(--primary); border-left-color: var(--primary); background: #f0f3ff; }
+  .toc a.sub-item { padding-left: 26px; font-size: 12px; }
+  .content { flex: 1; min-width: 0; max-width: 960px; }
+  [id] { scroll-margin-top: 20px; }
   h1 { font-size: 22px; margin-bottom: 6px; }
   h2 {
     font-size: 17px; margin: 34px 0 12px;
@@ -75,23 +95,81 @@
 </head>
 <body>
 
-<h1>开放接口文档</h1>
-<p class="sub">供外部系统（脚本、第三方平台等）通过 API Key 调用：上传文档自动切片入库、查询与删除知识库文档。</p>
+<div class="layout">
 
-<h2>1. 概述</h2>
+<aside class="toc">
+  <div class="toc-title">目录</div>
+  <a href="#sec-overview">1. 概述</a>
+  <a href="#sec-apikey">2. 获取 API Key</a>
+  <a href="#sec-endpoints">3. 接口列表</a>
+  <a href="#ep-chat" class="sub-item">对话补全 chat/completions</a>
+  <a href="#ep-upload" class="sub-item">上传文档 upload</a>
+  <a href="#ep-docs" class="sub-item">文档列表 docs</a>
+  <a href="#ep-docs-del" class="sub-item">删除文档 delete</a>
+  <a href="#sec-errors">4. 错误码</a>
+  <a href="#sec-faq">5. 常见问题</a>
+</aside>
+
+<main class="content">
+
+<h1>开放接口文档</h1>
+<p class="sub">供外部系统（脚本、第三方平台等）通过 API Key 调用：以 OpenAI 兼容格式对话（可带知识库与工具能力）、上传文档自动切片入库、查询与删除知识库文档。</p>
+
+<h2 id="sec-overview">1. 概述</h2>
 <p>所有开放接口以 <code>/open/v1/</code> 为前缀，使用 API Key 认证，与登录态（JWT）无关。上传的文档会被自动提取文本、切片并写入 <strong>Key 所属用户</strong>的向量知识库，随即可在对话中被检索。</p>
 <p>服务地址（Base URL）：<span class="base-url" id="base-url"></span></p>
 
-<h2>2. 获取 API Key</h2>
+<h2 id="sec-apikey">2. 获取 API Key</h2>
 <p>在控制台点击右上角用户名打开 <strong>个人资料</strong>，在「我的 API Key」区域点击 <strong>创建 API Key</strong>。创建成功后会显示一次完整 Key（形如 <code>sk-xxxxxxxx...</code>），请立即保存——之后只能看到前缀。</p>
+<p>创建时需选择<strong>调用模式</strong>，决定对话接口 <code>/open/v1/chat/completions</code> 的行为：<strong>Agent 完整链路</strong>（默认）——走服务端 Agent（固定问答、知识库检索、工具调用，数据按 Key 所属用户隔离）；<strong>纯模型代理</strong>——把请求原样转发给当前启用的模型，不带知识库与工具。两种模式不影响文档管理接口。</p>
 <p>调用时在请求头中携带 Key，两种方式任选其一：</p>
 <pre><code>X-API-Key: sk-xxxxxxxx
 # 或
 Authorization: Bearer sk-xxxxxxxx</code></pre>
 
-<h2>3. 接口列表</h2>
+<h2 id="sec-endpoints">3. 接口列表</h2>
 
-<div class="endpoint">
+<div class="endpoint" id="ep-chat">
+  <p><span class="method post">POST</span><span class="path">/open/v1/chat/completions</span>　对话补全（OpenAI 兼容）</p>
+  <p>与 OpenAI <code>/v1/chat/completions</code> 协议兼容，可直接使用官方 SDK。<strong>行为由 Key 的调用模式决定</strong>：</p>
+  <table>
+    <tr><th>Key 模式</th><th>行为</th></tr>
+    <tr><td>Agent 完整链路</td><td>固定问答短路 → 知识库检索 → 工具调用 → 回答。对话历史由服务端按 Key 所属用户维护，<code>messages</code> 只需传本轮 user 消息（历史字段会被忽略）</td></tr>
+    <tr><td>纯模型代理</td><td><code>messages</code> 与采样参数原样转发给当前启用的模型，无知识库、无工具、无系统提示注入，完全无状态</td></tr>
+  </table>
+  <p><code>model</code> 参数会被忽略（统一使用控制台当前启用的模型）。支持 <code>stream: true</code> 流式输出（SSE，以 <code>data: [DONE]</code> 结尾）。已透传的采样参数：<code>temperature / top_p / max_tokens / presence_penalty / frequency_penalty</code>。</p>
+  <p><strong>请求体：</strong></p>
+  <pre><code>{
+  "messages": [{"role": "user", "content": "根据销售报告，华东区利润多少？"}],
+  "stream": false,
+  "temperature": 0.7
+}</code></pre>
+  <p><strong>成功响应 200（非流式）：</strong></p>
+  <pre><code>{
+  "id": "chatcmpl-xxxx",
+  "object": "chat.completion",
+  "model": "deepseek-chat",
+  "choices": [{"index": 0, "message": {"role": "assistant", "content": "…"}, "finish_reason": "stop"}],
+  "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+}</code></pre>
+  <p><strong>curl 示例：</strong></p>
+  <pre><code>curl -X POST "{BASE}/open/v1/chat/completions" \
+  -H "X-API-Key: sk-xxxxxxxx" \
+  -H "Content-Type: application/json" \
+  -d '{"messages":[{"role":"user","content":"你好"}]}'</code></pre>
+  <p><strong>Python（OpenAI SDK）示例：</strong></p>
+  <pre><code>from openai import OpenAI
+
+client = OpenAI(base_url="{BASE}/open/v1", api_key="sk-xxxxxxxx")
+resp = client.chat.completions.create(
+    model="any",   # 服务端忽略此参数
+    messages=[{"role": "user", "content": "你好"}],
+    stream=False,  # True 时 resp 为流式增量
+)
+print(resp.choices[0].message.content)</code></pre>
+</div>
+
+<div class="endpoint" id="ep-upload">
   <p><span class="method post">POST</span><span class="path">/open/v1/upload</span>　上传文档并入库</p>
   <p>以 <code>multipart/form-data</code> 提交文件，字段名为 <code>file</code>。服务端提取文本、切片并向量化入库。</p>
   <table>
@@ -122,18 +200,19 @@ resp = requests.post(
 print(resp.json())</code></pre>
 </div>
 
-<div class="endpoint">
+<div class="endpoint" id="ep-docs">
   <p><span class="method get">GET</span><span class="path">/open/v1/docs</span>　列出已入库文档</p>
   <p><strong>成功响应 200：</strong></p>
   <pre><code>{
   "docs": ["产品手册.pdf", "会议纪要.docx"],
-  "total": 138
+  "total": 2,      // 文档个数
+  "chunks": 138    // 知识库总片段数
 }</code></pre>
   <p><strong>curl 示例：</strong></p>
   <pre><code>curl "{BASE}/open/v1/docs" -H "X-API-Key: sk-xxxxxxxx"</code></pre>
 </div>
 
-<div class="endpoint">
+<div class="endpoint" id="ep-docs-del">
   <p><span class="method delete">DELETE</span><span class="path">/open/v1/docs/{filename}</span>　删除文档及其向量片段</p>
   <p><code>filename</code> 需 URL 编码（中文文件名尤其注意）。</p>
   <p><strong>成功响应 200：</strong></p>
@@ -146,22 +225,26 @@ print(resp.json())</code></pre>
   -H "X-API-Key: sk-xxxxxxxx"</code></pre>
 </div>
 
-<h2>4. 错误码</h2>
+<h2 id="sec-errors">4. 错误码</h2>
 <table>
   <tr><th>HTTP 状态</th><th>含义</th><th>常见原因</th></tr>
   <tr><td>401</td><td>认证失败</td><td>未携带 Key / Key 无效 / Key 已被禁用或删除</td></tr>
-  <tr><td>400</td><td>请求错误</td><td>文件格式不受支持</td></tr>
+  <tr><td>400</td><td>请求错误</td><td>文件格式不受支持；对话接口 messages 缺失或无有效 user 消息</td></tr>
   <tr><td>404</td><td>资源不存在</td><td>删除的文档不存在</td></tr>
   <tr><td>413</td><td>文件过大</td><td>超过 50MB 上限</td></tr>
   <tr><td>500</td><td>入库失败</td><td>文档内容无法提取（如加密 PDF、空文档）</td></tr>
+  <tr><td>502</td><td>上游模型失败</td><td>对话接口：服务端未配置模型，或上游 API 调用出错</td></tr>
 </table>
-<p>错误响应统一为 <code>{"detail": "错误描述"}</code>。</p>
+<p>错误响应格式：<code>/open/v1/chat/completions</code> 返回 OpenAI 风格 <code>{"error": {"message": "...", "type": "..."}}</code>（官方 SDK 可直接解析）；其余接口返回 <code>{"detail": "错误描述"}</code>。</p>
 
-<h2>5. 常见问题</h2>
+<h2 id="sec-faq">5. 常见问题</h2>
 <h3>上传后对话中检索不到？</h3>
 <p>上传成功即已入库，直接向 Agent 提问相关内容即可（Agent 会自动检索知识库）。若检索不到，检查文档内容是否确实包含相关表述，或在控制台「向量片段」页确认切片结果。</p>
 <h3>Key 泄露了怎么办？</h3>
 <p>在控制台右上角「个人资料 → 我的 API Key」中删除该 Key 即可立即失效，再创建新 Key。</p>
+
+</main>
+</div>
 
 <script>
   var base = window.location.origin;

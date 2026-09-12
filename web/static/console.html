@@ -1245,7 +1245,7 @@ async function loadModels() {
         <td>${escapeHtml(m.name)}</td>
         <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(m.base_url)}</td>
         <td>${escapeHtml(m.model)}</td>
-        <td>${m.has_api_key ? `<code>${escapeHtml(m.api_key_masked)}</code><button class="btn-copy" onclick="copyToClipboard(this.previousElementSibling.textContent)" title="复制"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button>` : '<span style="color:var(--fg-dim)">未配置</span>'}</td>
+        <td>${m.has_api_key ? `<code title="脱敏显示，仅用于核对尾号；完整 Key 加密存储、无法查看，如需更换请在编辑中重新填写">${escapeHtml(m.api_key_masked)}</code>` : '<span style="color:var(--fg-dim)">未配置</span>'}</td>
         <td>${m.enabled
           ? '<span style="color:#4ade80;">● 已启用</span>'
           : '<span style="color:var(--fg-dim);">○ 未启用</span>'}</td>
@@ -1278,8 +1278,10 @@ function _buildModelModalHTML(title, editId, data) {
           <input type="text" name="base_url" placeholder="https://api.openai.com/v1" value="${escapeHtml(data.base_url || '')}" autocomplete="off">
           <div class="form-hint" style="margin-bottom:8px;">多数服务地址需包含 <b>/v1</b> 后缀。</div>
           <label>API Key</label>
-          <input type="password" name="api_key" placeholder="${data.has_api_key ? '留空保持不变' : '输入 API Key'}" value="" autocomplete="new-password">
-          <div class="form-hint" style="margin-bottom:8px;">${data.has_api_key ? `留空表示保持现有 Key 不变（当前：<code>${escapeHtml(data.api_key_masked)}</code>）` : '尚未配置 API Key，请输入。'}</div>
+          <input type="password" name="api_key" placeholder="${data.has_api_key ? '留空 = 使用已保存的 Key' : '输入 API Key'}" value="" autocomplete="new-password">
+          <div class="form-hint" style="margin-bottom:8px;">${data.has_api_key
+            ? `完整 Key 加密存储、无法回显（当前：<code>${escapeHtml(data.api_key_masked)}</code>）。留空 = 保存与测试连接均沿用已保存的 Key；要更换请粘贴新 Key。`
+            : '尚未配置 API Key，请输入。'}</div>
           <label>模型标识</label>
           <input type="text" name="model_id" placeholder="gpt-4o-mini" value="${escapeHtml(data.model || '')}" autocomplete="off">
         </div>
@@ -1390,12 +1392,19 @@ async function testModel() {
 }
 
 function confirmDeleteModel(id, name) {
-  showModal('删除模型', `确认删除模型「${name}」？此操作不可撤销。`, async () => {
-    try {
-      await fetchJSON(`/api/models/${id}`, { method: 'DELETE' });
-      toast('已删除');
-      loadModels();
-    } catch (e) { toast('删除失败: ' + e.message, 'error'); }
+  showModal({
+    title: '删除模型',
+    message: `确认删除模型「${name}」？此操作不可撤销。`,
+    confirmText: '删除',
+    danger: true,
+    onConfirm: async () => {
+      try {
+        await fetchJSON(`/api/models/${id}`, { method: 'DELETE' });
+        toast('已删除');
+        loadModels();
+        return true;
+      } catch (e) { toast('删除失败: ' + e.message, 'error'); return false; }
+    },
   });
 }
 
@@ -2130,10 +2139,10 @@ async function loadApiKeys() {
     tbody.innerHTML = d.keys.map(k => `
       <tr>
         <td>${k.id}</td>
-        <td>${escapeHtml(k.name)}</td>
+        <td>${escapeHtml(k.name)} <span class="tag ${k.mode === 'proxy' ? 'tag-grey' : 'tag-blue'}">${k.mode === 'proxy' ? '纯代理' : 'Agent 链路'}</span></td>
         <td><code>${escapeHtml(k.key_prefix)}</code><button class="btn-copy" onclick="copyToClipboard(this.previousElementSibling.textContent)" title="复制"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button></td>
         <td>${k.created_at || '-'}</td>
-        <td>${k.last_used_at || '从未使用'}</td>
+        <td>${k.last_used_at || '从未使用'}${k.call_count ? `（${k.call_count} 次）` : ''}</td>
         <td>${k.enabled ? '<span style="color:#4ade80;">● 启用</span>' : '<span style="color:var(--fg-dim);">○ 禁用</span>'}</td>
         <td style="white-space:nowrap;">
           <button class="btn btn-sm btn-ghost" onclick="toggleApiKey(${k.id}, ${!k.enabled})">${k.enabled ? '禁用' : '启用'}</button>
@@ -2146,14 +2155,20 @@ async function loadApiKeys() {
 function showCreateApiKey() {
   showModal({
     title: '创建 API Key',
-    fields: [{ label: '备注（用途说明）', name: 'name', type: 'text', placeholder: '如：ERP 系统数据同步' }],
+    fields: [
+      { label: '备注（用途说明）', name: 'name', type: 'text', placeholder: '如：ERP 系统数据同步' },
+      { label: '调用模式', name: 'mode', type: 'select', value: 'agent', options: [
+        { value: 'agent', label: 'Agent 完整链路（知识库检索 + 工具 + 固定问答）' },
+        { value: 'proxy', label: '纯模型代理（仅转发当前启用模型，不带知识库/工具）' },
+      ] },
+    ],
     confirmText: '创建',
     onConfirm: async (vals) => {
       try {
         const d = await fetchJSON('/api/api-keys', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: vals.name }),
+          body: JSON.stringify({ name: vals.name, mode: vals.mode }),
         });
         loadApiKeys();
         _showNewKeyModal(d.key.key);
@@ -2234,6 +2249,10 @@ function showModal({ title, fields, message, onConfirm, confirmText = '确定', 
     ? `<label>${f.label}</label><div class="checkbox-group" data-group="${f.name}">` +
       f.options.map(o => `<label class="check-item"><input type="checkbox" value="${o.value}" ${o.checked ? 'checked' : ''}>${o.label}</label>`).join('') +
       `</div>`
+    : f.type === 'select'
+    ? `<label>${f.label}</label><select name="${f.name}">` +
+      f.options.map(o => `<option value="${o.value}" ${o.value === f.value ? 'selected' : ''}>${o.label}</option>`).join('') +
+      `</select>`
     : `<label>${f.label}</label><input type="${f.type || 'text'}" name="${f.name}" placeholder="${f.placeholder || ''}" autocomplete="new-password">`
   ).join('');
 
@@ -2261,6 +2280,8 @@ function showModal({ title, fields, message, onConfirm, confirmText = '确定', 
       fields.forEach(f => {
         if (f.type === 'checkbox') {
           vals[f.name] = [...overlay.querySelectorAll(`[data-group="${f.name}"] input:checked`)].map(i => i.value);
+        } else if (f.type === 'select') {
+          vals[f.name] = overlay.querySelector(`select[name="${f.name}"]`).value;
         } else {
           vals[f.name] = overlay.querySelector(`input[name="${f.name}"]`).value.trim();
         }

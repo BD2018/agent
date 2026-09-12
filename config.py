@@ -29,7 +29,8 @@ EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "BAAI/bge-small-zh-v1.5")
 # ---------- 检索策略 ----------
 # CAG（缓存增强生成）：知识库较小时不做检索，全部片段直接进上下文。
 # 条件：片段数 <= CAG_MAX_CHUNKS 且总字符数 <= CAG_TOKEN_THRESHOLD（中文约 1 字 ≈ 1 token）。
-CAG_TOKEN_THRESHOLD = int(os.getenv("CAG_TOKEN_THRESHOLD", "80000"))
+# 阈值不宜过大：全库灌注会显著稀释模型注意力，弱模型易复述工具输出甚至返回空内容。
+CAG_TOKEN_THRESHOLD = int(os.getenv("CAG_TOKEN_THRESHOLD", "12000"))
 CAG_MAX_CHUNKS = int(os.getenv("CAG_MAX_CHUNKS", "1000"))
 # 混合检索：BM25 关键词 + 向量双路召回，RRF 融合排名；关闭则退回纯向量检索。
 HYBRID_SEARCH_ENABLED = os.getenv("HYBRID_SEARCH_ENABLED", "true").lower() in ("1", "true", "yes")

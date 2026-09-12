@@ -313,6 +313,7 @@ async function sendMessage() {
   const bubbleEl = loadingEl.querySelector('.bubble');
   let answerText = '';
   let eventsEl = null;
+  let errored = false; // 收到 error 事件后，流结束时的兜底提示不得覆盖错误信息
 
   // ── 打字机渲染：网络接收与视觉渲染解耦 ──
   // SSE 到达的文本先进 pending 缓冲，rAF 循环每帧匀速吐字；
@@ -404,14 +405,17 @@ async function sendMessage() {
           eventsEl.textContent += '[工具] ' + d.content + '\n';
           messagesEl.scrollTop = messagesEl.scrollHeight;
         } else if (d.type === 'error') {
+          errored = true;
           bubbleEl.textContent = '出错了: ' + d.content;
         }
       }
     }
 
     finishTyping();
-    if (!answerText && !eventsEl) {
-      bubbleEl.textContent = '(空回复)';
+    if (errored) {
+      // 保留错误提示（后端已把异常分类为网络异常/模型异常等中文文案），不再覆盖
+    } else if (!answerText && !eventsEl) {
+      bubbleEl.textContent = '模型未返回内容，请重试';
     }
     clearTimeout(timer);
   } catch (e) {
